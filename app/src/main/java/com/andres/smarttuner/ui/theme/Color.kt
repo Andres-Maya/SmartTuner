@@ -2,10 +2,18 @@ package com.andres.smarttuner.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-val Purple80 = Color(0xFFD0BCFF)
-val PurpleGrey80 = Color(0xFFCCC2DC)
-val Pink80 = Color(0xFFEFB8C8)
+val Night = Color(0xFF090D1C)
+val NightDeep = Color(0xFF05070F)
+val NightSurface = Color(0xFF131A33)
+val NightSurfaceHigh = Color(0xFF1C2447)
+val Accent = Color(0xFF8C9BFF)
 
-val Purple40 = Color(0xFF6650a4)
-val PurpleGrey40 = Color(0xFF625b71)
-val Pink40 = Color(0xFF7D5260)
+val TextPrimary = Color(0xFFEDEFF7)
+val TextMuted = Color(0xFF8A93B2)
+val TrackColor = Color(0x1AFFFFFF)
+val TickColor = Color(0x4DFFFFFF)
+val StaffLineColor = Color(0x66FFFFFF)
+
+val InTune = Color(0xFF3DDC97)
+val NearlyInTune = Color(0xFFFFC857)
+val OutOfTune = Color(0xFFFF6B6B)
