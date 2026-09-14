@@ -1,3 +1,34 @@
 <resources>
     <string name="app_name">SmartTuner</string>
+    <string name="tuner_subtitle">Afinador cromático</string>
+    <string name="toggle_accidentals">Alternar entre sostenidos y bemoles</string>
+
+    <string name="flat_side">◀ GRAVE</string>
+    <string name="sharp_side">AGUDO ▶</string>
+    <string name="play_a_note">Toca o canta una nota</string>
+
+    <string name="label_frequency">FRECUENCIA</string>
+    <string name="label_cents">DESVIACIÓN</string>
+    <string name="label_target">OBJETIVO</string>
+
+    <string name="status_waiting">Esperando sonido…</string>
+    <string name="status_in_tune">¡Afinado!</string>
+    <string name="status_flat">Grave · sube la afinación</string>
+    <string name="status_sharp">Agudo · baja la afinación</string>
+    <string name="error_microphone">No se pudo acceder al micrófono</string>
+
+    <string name="staff_title">PENTAGRAMA</string>
+    <string name="clef_treble">Clave de Sol</string>
+    <string name="clef_bass">Clave de Fa</string>
+
+    <string name="listening">● Escuchando</string>
+    <string name="mic_paused">Micrófono en pausa</string>
+    <string name="reference_label">La4 = %1$d Hz</string>
+    <string name="decrease_reference">Bajar frecuencia de referencia</string>
+    <string name="increase_reference">Subir frecuencia de referencia</string>
+
+    <string name="permission_title">Necesito tu micrófono</string>
+    <string name="permission_body">SmartTuner escucha tu instrumento para detectar la nota y decirte qué tan afinado está. El audio se procesa en el teléfono y nunca se guarda ni se envía.</string>
+    <string name="permission_grant">Permitir micrófono</string>
+    <string name="permission_open_settings">Abrir ajustes de la app</string>
 </resources>
