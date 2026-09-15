@@ -7,6 +7,7 @@ val NightDeep = Color(0xFF05070F)
 val NightSurface = Color(0xFF131A33)
 val NightSurfaceHigh = Color(0xFF1C2447)
 val Accent = Color(0xFF8C9BFF)
+val AccentViolet = Color(0xFFB794FF)
 
 val TextPrimary = Color(0xFFEDEFF7)
 val TextMuted = Color(0xFF8A93B2)

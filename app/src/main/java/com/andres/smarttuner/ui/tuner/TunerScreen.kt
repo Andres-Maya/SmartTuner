@@ -41,6 +41,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Surface
@@ -66,6 +68,7 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
@@ -81,6 +84,7 @@ import com.andres.smarttuner.tuner.TunerUiState
 import com.andres.smarttuner.tuner.TunerViewModel
 import com.andres.smarttuner.tuner.TuningStatus
 import com.andres.smarttuner.ui.theme.Accent
+import com.andres.smarttuner.ui.theme.AccentViolet
 import com.andres.smarttuner.ui.theme.Night
 import com.andres.smarttuner.ui.theme.NightDeep
 import com.andres.smarttuner.ui.theme.NightSurface
@@ -133,6 +137,12 @@ fun TunerRoute(viewModel: TunerViewModel) {
                 state = state,
                 onToggleAccidentals = viewModel::toggleAccidentalStyle,
                 onChangeReference = viewModel::changeReference,
+                onIdentifyInstrument = viewModel::identifyInstrument,
+            )
+            IdentificationSheet(
+                state = state.identification,
+                onRetry = viewModel::identifyInstrument,
+                onDismiss = viewModel::dismissIdentification,
             )
         } else {
             PermissionRequest(
@@ -156,6 +166,7 @@ fun TunerScreen(
     state: TunerUiState,
     onToggleAccidentals: () -> Unit,
     onChangeReference: (Float) -> Unit,
+    onIdentifyInstrument: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val color by animateColorAsState(
@@ -183,7 +194,7 @@ fun TunerScreen(
         Spacer(Modifier.height(12.dp))
         StaffCard(state, color)
         Spacer(Modifier.weight(1f))
-        BottomBar(state, onChangeReference)
+        BottomBar(state, onIdentifyInstrument, onChangeReference)
     }
 }
 
@@ -279,8 +290,8 @@ private fun NoteDisplay(
 
     AnimatedContent(
         targetState = note,
+        // El brillo se dibuja fuera de la capa con alpha: dentro de ella quedaría recortado en un rectángulo.
         modifier = modifier
-            .graphicsLayer { alpha = contentAlpha }
             .drawBehind {
                 val radius = size.maxDimension * 0.8f
                 drawCircle(
@@ -291,7 +302,8 @@ private fun NoteDisplay(
                     ),
                     radius = radius,
                 )
-            },
+            }
+            .graphicsLayer { alpha = contentAlpha },
         transitionSpec = {
             // Una nota más aguda entra por la derecha (lado agudo); una más grave, por la izquierda.
             val direction = if ((targetState?.midi ?: 0) >= (initialState?.midi ?: 0)) 1 else -1
@@ -434,17 +446,13 @@ private fun PulsingDot(color: Color, pulsing: Boolean) {
 }
 
 @Composable
-private fun BottomBar(state: TunerUiState, onChangeReference: (Float) -> Unit) {
+private fun BottomBar(state: TunerUiState, onIdentifyInstrument: () -> Unit, onChangeReference: (Float) -> Unit) {
     Row(
         Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Text(
-            text = stringResource(if (state.isListening) R.string.listening else R.string.mic_paused),
-            color = TextMuted,
-            fontSize = 13.sp,
-        )
+        IdentifyButton(onIdentifyInstrument, Modifier.weight(1f))
         Row(
             Modifier
                 .clip(CircleShape)
@@ -462,6 +470,29 @@ private fun BottomBar(state: TunerUiState, onChangeReference: (Float) -> Unit) {
             )
             RoundButton("+", stringResource(R.string.increase_reference)) { onChangeReference(1f) }
         }
+    }
+}
+
+@Composable
+private fun IdentifyButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Row(
+        modifier
+            .height(44.dp)
+            .clip(CircleShape)
+            .background(Brush.horizontalGradient(listOf(Accent, AccentViolet)))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center,
+    ) {
+        Text("✦", color = NightDeep, fontSize = 15.sp)
+        Spacer(Modifier.width(6.dp))
+        BasicText(
+            text = stringResource(R.string.identify_instrument),
+            style = TextStyle(color = NightDeep, fontWeight = FontWeight.SemiBold),
+            maxLines = 1,
+            autoSize = TextAutoSize.StepBased(minFontSize = 10.sp, maxFontSize = 14.sp),
+        )
     }
 }
 
@@ -563,6 +594,7 @@ private fun TunerScreenPreview() {
             ),
             onToggleAccidentals = {},
             onChangeReference = {},
+            onIdentifyInstrument = {},
         )
     }
 }

@@ -5,32 +5,54 @@ import android.annotation.SuppressLint
 import android.app.Application
 import android.content.pm.PackageManager
 import android.os.SystemClock
+import android.util.Log
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.andres.smarttuner.audio.MicrophonePitchSource
+import com.andres.smarttuner.ai.IdentificationOutcome
+import com.andres.smarttuner.ai.IdentificationSession
+import com.andres.smarttuner.ai.YamnetClassifier
+import com.andres.smarttuner.audio.AudioFrame
+import com.andres.smarttuner.audio.MicrophoneAudioSource
 import com.andres.smarttuner.audio.PitchResult
 import com.andres.smarttuner.music.AccidentalStyle
 import com.andres.smarttuner.music.MusicTheory
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.takeWhile
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.roundToInt
 
 class TunerViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val pitchSource = MicrophonePitchSource(application)
+    private val audioSource = MicrophoneAudioSource(application)
     private val smoother = PitchSmoother()
 
     private val _uiState = MutableStateFlow(TunerUiState())
     val uiState: StateFlow<TunerUiState> = _uiState.asStateFlow()
 
+    // Reparte los bloques del único AudioRecord a análisis secundarios (la IA) sin abrir otro micrófono.
+    private val audioFrames = MutableSharedFlow<AudioFrame>(
+        extraBufferCapacity = 64,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
+
     private var listenJob: Job? = null
+    private var identifyJob: Job? = null
     private var lastSignalAt = 0L
+
+    @Volatile
+    private var classifier: YamnetClassifier? = null
 
     // El permiso se comprueba explícitamente antes de abrir el micrófono.
     @SuppressLint("MissingPermission")
@@ -43,17 +65,21 @@ class TunerViewModel(application: Application) : AndroidViewModel(application) {
 
         _uiState.update { it.copy(isListening = true, errorMessage = null) }
         listenJob = viewModelScope.launch {
-            pitchSource.pitches()
+            audioSource.frames()
                 .catch { e ->
                     _uiState.update { it.copy(isListening = false, hasSignal = false, errorMessage = e.message) }
                 }
-                .collect(::onPitch)
+                .collect { frame ->
+                    audioFrames.tryEmit(frame)
+                    onPitch(frame.pitch)
+                }
         }
     }
 
     fun stopListening() {
         listenJob?.cancel()
         listenJob = null
+        if (identifyJob?.isActive == true) dismissIdentification()
         smoother.reset()
         _uiState.update { it.copy(isListening = false, hasSignal = false) }
     }
@@ -70,6 +96,61 @@ class TunerViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.update {
             it.copy(referenceA4 = (it.referenceA4 + deltaHz).coerceIn(MusicTheory.MIN_A4, MusicTheory.MAX_A4))
         }
+    }
+
+    fun identifyInstrument() {
+        if (identifyJob?.isActive == true) return
+        startListening()
+        if (listenJob?.isActive != true) return
+
+        _uiState.update { it.copy(identification = IdentificationUiState.Listening(progress = 0f)) }
+        identifyJob = viewModelScope.launch {
+            val next = try {
+                IdentificationUiState.Finished(withContext(Dispatchers.Default) { runIdentification() })
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "Falló la identificación de instrumento", e)
+                IdentificationUiState.Failed
+            }
+            _uiState.update { it.copy(identification = next) }
+        }
+    }
+
+    fun dismissIdentification() {
+        identifyJob?.cancel()
+        identifyJob = null
+        _uiState.update { it.copy(identification = IdentificationUiState.Hidden) }
+    }
+
+    private suspend fun runIdentification(): IdentificationOutcome {
+        val sampleRate = MicrophoneAudioSource.SAMPLE_RATE
+        val yamnet = classifier ?: YamnetClassifier(getApplication()).also {
+            // La primera inferencia es mucho más lenta: se hace con silencio antes de escuchar.
+            it.classify(FloatArray(sampleRate), sampleRate)
+            classifier = it
+        }
+        val session = IdentificationSession(sampleRate, classify = { yamnet.classify(it, sampleRate) })
+
+        // Termina por segundos de audio analizado; el tope evita quedarse colgado si el micrófono se detiene.
+        withTimeoutOrNull(IDENTIFY_TIMEOUT_MS) {
+            audioFrames.takeWhile { session.acceptedSeconds < IDENTIFY_SECONDS }.collect { frame ->
+                val pitchMidi = frame.pitch
+                    ?.takeIf { it.probability >= MIN_PROBABILITY }
+                    ?.let { MusicTheory.frequencyToMidi(it.frequency) }
+                session.accept(frame.samples, pitchMidi)
+
+                val progress = session.acceptedSeconds / IDENTIFY_SECONDS
+                _uiState.update { state ->
+                    if (state.identification is IdentificationUiState.Listening) {
+                        state.copy(identification = IdentificationUiState.Listening(progress.coerceIn(0f, 1f)))
+                    } else {
+                        state
+                    }
+                }
+            }
+        }
+        return session.result()
     }
 
     private fun onPitch(result: PitchResult?) {
@@ -98,10 +179,15 @@ class TunerViewModel(application: Application) : AndroidViewModel(application) {
 
     override fun onCleared() {
         stopListening()
+        classifier?.close()
+        classifier = null
     }
 
     private companion object {
+        const val TAG = "TunerViewModel"
         const val MIN_PROBABILITY = 0.85f
         const val SIGNAL_HOLD_MS = 500L
+        const val IDENTIFY_SECONDS = 4f
+        const val IDENTIFY_TIMEOUT_MS = 12_000L
     }
 }

@@ -16,15 +16,21 @@ import kotlinx.coroutines.isActive
 import kotlin.math.max
 import kotlin.math.min
 
+/** Bloque de audio recién capturado y la altura detectada en la ventana que termina en él. */
+class AudioFrame(
+    val samples: FloatArray,
+    val pitch: PitchResult?,
+)
+
 /**
- * Captura audio del micrófono y emite una estimación de frecuencia por cada bloque
- * (~21 por segundo). Emite `null` cuando hay silencio o la señal no es periódica.
+ * Captura audio del micrófono y emite un [AudioFrame] por bloque (~21 por segundo).
+ * La altura es `null` cuando hay silencio o la señal no es periódica.
  * La grabación se detiene al cancelar la colección del Flow.
  */
-class MicrophonePitchSource(private val context: Context) {
+class MicrophoneAudioSource(private val context: Context) {
 
     @RequiresPermission(Manifest.permission.RECORD_AUDIO)
-    fun pitches(): Flow<PitchResult?> = flow {
+    fun frames(): Flow<AudioFrame> = flow {
         val detector = YinPitchDetector(SAMPLE_RATE, BUFFER_SIZE)
         val minBuffer = AudioRecord.getMinBufferSize(SAMPLE_RATE, CHANNEL, ENCODING)
         val record = AudioRecord(audioSource(), SAMPLE_RATE, CHANNEL, ENCODING, max(minBuffer, BUFFER_SIZE * 2))
@@ -47,7 +53,8 @@ class MicrophonePitchSource(private val context: Context) {
                 System.arraycopy(window, read, window, 0, BUFFER_SIZE - read)
                 System.arraycopy(chunk, 0, window, BUFFER_SIZE - read, read)
                 filled = min(BUFFER_SIZE, filled + read)
-                if (filled == BUFFER_SIZE) emit(detector.detect(window))
+                val pitch = if (filled == BUFFER_SIZE) detector.detect(window) else null
+                emit(AudioFrame(chunk.copyOf(read), pitch))
             }
         } finally {
             if (record.recordingState == AudioRecord.RECORDSTATE_RECORDING) record.stop()
@@ -68,11 +75,11 @@ class MicrophonePitchSource(private val context: Context) {
         }
     }
 
-    private companion object {
+    companion object {
         const val SAMPLE_RATE = 44_100
-        const val BUFFER_SIZE = 4096
-        const val HOP_SIZE = 2048
-        const val CHANNEL = AudioFormat.CHANNEL_IN_MONO
-        const val ENCODING = AudioFormat.ENCODING_PCM_FLOAT
+        private const val BUFFER_SIZE = 4096
+        private const val HOP_SIZE = 2048
+        private const val CHANNEL = AudioFormat.CHANNEL_IN_MONO
+        private const val ENCODING = AudioFormat.ENCODING_PCM_FLOAT
     }
 }
