@@ -31,19 +31,29 @@
     <string name="identify_listening_footer">La IA analiza timbre y registro en tu teléfono</string>
     <string name="identify_cancel">Cancelar</string>
     <string name="identify_retry">Reintentar</string>
-    <string name="identify_done">Listo</string>
+    <string name="identify_accept">Aceptar</string>
+    <string name="identify_accept_hint">Al aceptar verás la afinación de %1$s.</string>
     <string name="identify_confidence">%1$d%% · confianza %2$s</string>
     <string name="confidence_high">alta</string>
     <string name="confidence_medium">media</string>
     <string name="confidence_low">baja</string>
     <string name="identify_probabilities">PROBABILIDADES</string>
-    <string name="identify_standard_tuning">AFINACIÓN ESTÁNDAR</string>
     <string name="identify_other_named">Otro · %1$s</string>
     <string name="identify_violin_viola_hint">El violín y la viola suenan muy parecido: tocar la cuerda más grave (Sol del violín o Do de la viola) ayuda a distinguirlos.</string>
     <string name="identify_none_title">No reconocí un instrumento</string>
     <string name="identify_none_body">Acércate al micrófono y toca varias notas claras mientras escucho.</string>
     <string name="identify_error_title">No se pudo usar la IA</string>
+    <string name="unknown_instrument">Instrumento no reconocido</string>
     <string name="identify_error_body">Ocurrió un error al cargar el modelo de reconocimiento. Intenta de nuevo.</string>
+
+    <string name="tuning_subtitle">Afinación estándar · La %1$d</string>
+    <string name="tuning_back">Volver al afinador cromático</string>
+    <string name="tuning_play_open_string">Toca una cuerda al aire</string>
+    <string name="tuning_string_in_tune">Cuerda %1$d afinada</string>
+    <string name="tuning_string_flat">Cuerda %1$d grave · sube</string>
+    <string name="tuning_string_sharp">Cuerda %1$d aguda · baja</string>
+    <string name="tuning_progress">%1$d de %2$d cuerdas afinadas</string>
+    <string name="tuning_all_done">¡Instrumento afinado!</string>
 
     <string name="permission_title">Necesito tu micrófono</string>
     <string name="permission_body">SmartTuner escucha tu instrumento para detectar la nota y decirte qué tan afinado está. El audio se procesa en el teléfono y nunca se guarda ni se envía.</string>

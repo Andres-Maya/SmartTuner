@@ -14,7 +14,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,9 +25,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -75,6 +72,7 @@ import kotlin.math.roundToInt
 fun IdentificationSheet(
     state: IdentificationUiState,
     onRetry: () -> Unit,
+    onAccept: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     if (state == IdentificationUiState.Hidden) return
@@ -104,13 +102,11 @@ fun IdentificationSheet(
                         is IdentificationUiState.Finished -> when (val outcome = current.outcome) {
                             is IdentificationOutcome.Identified -> IdentifiedContent(outcome)
                             IdentificationOutcome.NoInstrument -> MessageContent(
-                                emoji = "🤔",
                                 title = R.string.identify_none_title,
                                 body = R.string.identify_none_body,
                             )
                         }
                         IdentificationUiState.Failed -> MessageContent(
-                            emoji = "⚠️",
                             title = R.string.identify_error_title,
                             body = R.string.identify_error_body,
                         )
@@ -125,6 +121,19 @@ fun IdentificationSheet(
                     Text(stringResource(R.string.identify_cancel), color = TextMuted)
                 }
             } else {
+                val tuningInstrument = ((state as? IdentificationUiState.Finished)?.outcome as? IdentificationOutcome.Identified)
+                    ?.best
+                    ?.instrument
+                    ?.takeUnless { it.isChromatic }
+                if (tuningInstrument != null) {
+                    Text(
+                        text = stringResource(R.string.identify_accept_hint, tuningInstrument.displayName),
+                        color = TextMuted,
+                        fontSize = 13.sp,
+                        textAlign = TextAlign.Center,
+                    )
+                    Spacer(Modifier.height(12.dp))
+                }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlinedButton(
                         onClick = onRetry,
@@ -137,14 +146,14 @@ fun IdentificationSheet(
                         Text(stringResource(R.string.identify_retry), color = Accent)
                     }
                     Button(
-                        onClick = onDismiss,
+                        onClick = onAccept,
                         shape = CircleShape,
                         colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = NightDeep),
                         modifier = Modifier
                             .weight(1f)
                             .height(48.dp),
                     ) {
-                        Text(stringResource(R.string.identify_done), fontWeight = FontWeight.SemiBold)
+                        Text(stringResource(R.string.identify_accept), fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
@@ -211,14 +220,11 @@ private fun ListeningContent(progress: Float) {
 private fun IdentifiedContent(outcome: IdentificationOutcome.Identified) {
     val best = outcome.best
     val confidence = Confidence.of(best.probability)
+    val name = instrumentName(best.instrument, outcome.otherLabel)
 
-    Text(best.instrument.emoji, fontSize = 64.sp)
-    Text(
-        text = instrumentName(best.instrument, outcome.otherLabel),
-        fontSize = 28.sp,
-        fontWeight = FontWeight.Bold,
-        textAlign = TextAlign.Center,
-    )
+    InstrumentIcon(best.instrument, contentDescription = name, modifier = Modifier.size(96.dp))
+    Spacer(Modifier.height(12.dp))
+    Text(text = name, fontSize = 28.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
     Spacer(Modifier.height(8.dp))
     Surface(shape = CircleShape, color = confidence.color.copy(alpha = 0.14f)) {
         Text(
@@ -235,39 +241,21 @@ private fun IdentifiedContent(outcome: IdentificationOutcome.Identified) {
     }
 
     Spacer(Modifier.height(24.dp))
-    SectionLabel(R.string.identify_probabilities)
+    Text(
+        text = stringResource(R.string.identify_probabilities),
+        color = TextMuted,
+        fontSize = 11.sp,
+        letterSpacing = 1.sp,
+        fontWeight = FontWeight.SemiBold,
+        modifier = Modifier.fillMaxWidth(),
+    )
     outcome.candidates
         .take(3)
         .filter { it.probability >= 0.01f }
         .forEach { candidate ->
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(10.dp))
             CandidateBar(candidate, outcome.otherLabel, highlighted = candidate == best)
         }
-
-    if (!best.instrument.isChromatic) {
-        Spacer(Modifier.height(20.dp))
-        SectionLabel(R.string.identify_standard_tuning)
-        Spacer(Modifier.height(8.dp))
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            best.instrument.strings.forEach { string ->
-                Column(
-                    Modifier
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(NightSurfaceHigh)
-                        .padding(horizontal = 12.dp, vertical = 6.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Text(string.number.toString(), color = TextMuted, fontSize = 10.sp)
-                    Text(string.note().label, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                }
-            }
-        }
-    }
 
     if (best.instrument == Instrument.VIOLIN || best.instrument == Instrument.VIOLA) {
         Spacer(Modifier.height(16.dp))
@@ -287,12 +275,14 @@ private fun CandidateBar(candidate: InstrumentCandidate, otherLabel: String?, hi
         fraction.animateTo(candidate.probability, tween(700))
     }
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        InstrumentIcon(candidate.instrument, contentDescription = null, modifier = Modifier.size(22.dp))
+        Spacer(Modifier.width(10.dp))
         Text(
             text = instrumentName(candidate.instrument, otherLabel),
             color = if (highlighted) TextPrimary else TextMuted,
             fontSize = 14.sp,
             maxLines = 1,
-            modifier = Modifier.width(120.dp),
+            modifier = Modifier.width(104.dp),
         )
         Box(
             Modifier
@@ -320,24 +310,16 @@ private fun CandidateBar(candidate: InstrumentCandidate, otherLabel: String?, hi
 }
 
 @Composable
-private fun MessageContent(emoji: String, @StringRes title: Int, @StringRes body: Int) {
-    Text(emoji, fontSize = 56.sp)
-    Spacer(Modifier.height(8.dp))
+private fun MessageContent(@StringRes title: Int, @StringRes body: Int) {
+    InstrumentIcon(
+        instrument = null,
+        contentDescription = stringResource(R.string.unknown_instrument),
+        modifier = Modifier.size(88.dp),
+    )
+    Spacer(Modifier.height(16.dp))
     Text(stringResource(title), fontSize = 22.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
     Spacer(Modifier.height(8.dp))
     Text(stringResource(body), color = TextMuted, fontSize = 14.sp, textAlign = TextAlign.Center)
-}
-
-@Composable
-private fun SectionLabel(@StringRes text: Int) {
-    Text(
-        text = stringResource(text),
-        color = TextMuted,
-        fontSize = 11.sp,
-        letterSpacing = 1.sp,
-        fontWeight = FontWeight.SemiBold,
-        modifier = Modifier.fillMaxWidth(),
-    )
 }
 
 @Composable
@@ -363,14 +345,6 @@ private enum class Confidence(@StringRes val label: Int, val color: Color) {
     }
 }
 
-private val Instrument.emoji: String
-    get() = when (this) {
-        Instrument.GUITAR, Instrument.BASS -> "🎸"
-        Instrument.VIOLIN, Instrument.VIOLA, Instrument.CELLO -> "🎻"
-        Instrument.UKULELE -> "🪕"
-        Instrument.OTHER -> "🎵"
-    }
-
 private val OTHER_LABELS_ES = mapOf(
     "Banjo" to "Banjo",
     "Sitar" to "Sitar",
@@ -390,6 +364,7 @@ private val OTHER_LABELS_ES = mapOf(
     "Drum" to "Tambor",
     "Snare drum" to "Redoblante",
     "Bass drum" to "Bombo",
+    "Timpani" to "Timbales",
     "Tabla" to "Tabla",
     "Cymbal" to "Platillo",
     "Percussion" to "Percusión",
@@ -397,6 +372,7 @@ private val OTHER_LABELS_ES = mapOf(
     "Glockenspiel" to "Glockenspiel",
     "Vibraphone" to "Vibráfono",
     "Steelpan" to "Steelpan",
+    "Tubular bells" to "Campanas tubulares",
     "Brass instrument" to "Metales",
     "Trumpet" to "Trompeta",
     "Trombone" to "Trombón",
@@ -407,6 +383,8 @@ private val OTHER_LABELS_ES = mapOf(
     "Clarinet" to "Clarinete",
     "Harmonica" to "Armónica",
     "Bagpipes" to "Gaita",
+    "Didgeridoo" to "Didgeridoo",
+    "Theremin" to "Theremín",
     "Singing" to "Voz",
     "Choir" to "Coro",
 )

@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.provider.Settings
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
@@ -80,6 +81,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.andres.smarttuner.R
 import com.andres.smarttuner.music.AccidentalStyle
 import com.andres.smarttuner.music.NoteName
+import com.andres.smarttuner.tuner.TunerMode
 import com.andres.smarttuner.tuner.TunerUiState
 import com.andres.smarttuner.tuner.TunerViewModel
 import com.andres.smarttuner.tuner.TuningStatus
@@ -94,6 +96,14 @@ import com.andres.smarttuner.ui.theme.TextMuted
 import com.andres.smarttuner.ui.theme.TextPrimary
 import java.util.Locale
 import kotlin.math.roundToInt
+
+internal val TunerBackground = Brush.verticalGradient(listOf(NightSurface, Night, NightDeep))
+internal const val EMPTY_HZ = "— Hz"
+internal const val EMPTY_CENTS = "— ¢"
+
+internal fun formatHz(hz: Float): String = String.format(Locale.US, "%.1f Hz", hz)
+
+internal fun formatCents(cents: Float): String = String.format(Locale.US, "%+.0f ¢", cents)
 
 @Composable
 fun TunerRoute(viewModel: TunerViewModel) {
@@ -127,21 +137,42 @@ fun TunerRoute(viewModel: TunerViewModel) {
 
     KeepScreenOn()
 
+    BackHandler(enabled = state.mode is TunerMode.InstrumentTuning, onBack = viewModel::closeInstrumentTuning)
+
     Box(
         Modifier
             .fillMaxSize()
-            .background(Brush.verticalGradient(listOf(NightSurface, Night, NightDeep))),
+            .background(TunerBackground),
     ) {
         if (hasPermission) {
-            TunerScreen(
-                state = state,
-                onToggleAccidentals = viewModel::toggleAccidentalStyle,
-                onChangeReference = viewModel::changeReference,
-                onIdentifyInstrument = viewModel::identifyInstrument,
-            )
+            AnimatedContent(
+                targetState = state.mode,
+                transitionSpec = {
+                    // La afinación por instrumento entra desde la derecha; al volver, el afinador desde la izquierda.
+                    val direction = if (targetState is TunerMode.InstrumentTuning) 1 else -1
+                    (slideInHorizontally(tween(320)) { it * direction } + fadeIn(tween(320)))
+                        .togetherWith(slideOutHorizontally(tween(320)) { -it * direction / 3 } + fadeOut(tween(320)))
+                },
+                label = "tunerMode",
+            ) { mode ->
+                when (mode) {
+                    TunerMode.Chromatic -> TunerScreen(
+                        state = state,
+                        onToggleAccidentals = viewModel::toggleAccidentalStyle,
+                        onChangeReference = viewModel::changeReference,
+                        onIdentifyInstrument = viewModel::identifyInstrument,
+                    )
+                    is TunerMode.InstrumentTuning -> InstrumentTuningScreen(
+                        state = state,
+                        instrument = mode.instrument,
+                        onBack = viewModel::closeInstrumentTuning,
+                    )
+                }
+            }
             IdentificationSheet(
                 state = state.identification,
                 onRetry = viewModel::identifyInstrument,
+                onAccept = viewModel::acceptIdentification,
                 onDismiss = viewModel::dismissIdentification,
             )
         } else {
@@ -174,21 +205,47 @@ fun TunerScreen(
         animationSpec = tween(250),
         label = "tuningColor",
     )
+    val animatedCents by animateFloatAsState(
+        targetValue = if (state.hasSignal) state.cents else 0f,
+        animationSpec = spring(dampingRatio = 0.7f, stiffness = Spring.StiffnessLow),
+        label = "cents",
+    )
+    val hasNote = state.hasSignal && state.nearestMidi != null
+    val idle = state.status == TuningStatus.IDLE
 
     Column(
         modifier
             .fillMaxSize()
+            .background(TunerBackground)
             .systemBarsPadding()
             .padding(horizontal = 20.dp, vertical = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         TopBar(state.accidentalStyle, onToggleAccidentals)
         Spacer(Modifier.weight(1f))
-        TunerDial(state, color)
+        TunerDial(
+            cents = animatedCents,
+            hasSignal = state.hasSignal,
+            inTune = state.status == TuningStatus.IN_TUNE,
+            note = state.note,
+            color = color,
+            lowerNote = state.lowerNeighbor,
+            upperNote = state.upperNeighbor,
+            emptyLabel = stringResource(R.string.play_a_note),
+        )
         Spacer(Modifier.height(12.dp))
-        ReadingsRow(state)
+        ReadingsRow(
+            frequency = if (hasNote) formatHz(state.frequency) else EMPTY_HZ,
+            cents = if (hasNote) formatCents(state.cents) else EMPTY_CENTS,
+            target = if (state.nearestMidi != null) formatHz(state.targetFrequency) else EMPTY_HZ,
+        )
         Spacer(Modifier.height(12.dp))
-        StatusPill(state, color)
+        StatusPill(
+            text = chromaticStatusText(state),
+            color = color,
+            idle = idle,
+            pulsing = idle && state.isListening,
+        )
         Spacer(Modifier.weight(1f))
         NoteStrip(state, color, Modifier.fillMaxWidth().height(64.dp))
         Spacer(Modifier.height(12.dp))
@@ -196,6 +253,15 @@ fun TunerScreen(
         Spacer(Modifier.weight(1f))
         BottomBar(state, onIdentifyInstrument, onChangeReference)
     }
+}
+
+@Composable
+private fun chromaticStatusText(state: TunerUiState): String = when {
+    state.errorMessage != null -> stringResource(R.string.error_microphone)
+    state.status == TuningStatus.IN_TUNE -> stringResource(R.string.status_in_tune)
+    state.status == TuningStatus.FLAT -> stringResource(R.string.status_flat)
+    state.status == TuningStatus.SHARP -> stringResource(R.string.status_sharp)
+    else -> stringResource(R.string.status_waiting)
 }
 
 @Composable
@@ -242,35 +308,42 @@ private fun AccidentalToggle(style: AccidentalStyle, onToggle: () -> Unit) {
     }
 }
 
+/** Arco de afinación con la nota objetivo en el centro y sus vecinas grave y aguda a los lados. */
 @Composable
-private fun TunerDial(state: TunerUiState, color: Color) {
-    val animatedCents by animateFloatAsState(
-        targetValue = if (state.hasSignal) state.cents else 0f,
-        animationSpec = spring(dampingRatio = 0.7f, stiffness = Spring.StiffnessLow),
-        label = "cents",
-    )
+internal fun TunerDial(
+    cents: Float,
+    hasSignal: Boolean,
+    inTune: Boolean,
+    note: NoteName?,
+    color: Color,
+    lowerNote: NoteName?,
+    upperNote: NoteName?,
+    emptyLabel: String,
+    modifier: Modifier = Modifier,
+) {
     Box(
-        Modifier
+        modifier
             .fillMaxWidth()
             .aspectRatio(1.3f),
     ) {
-        TuningGauge(animatedCents, state.hasSignal, color, Modifier.matchParentSize())
+        TuningGauge(cents, hasSignal, color, Modifier.matchParentSize())
         NoteDisplay(
-            note = state.note,
-            hasSignal = state.hasSignal,
-            inTune = state.status == TuningStatus.IN_TUNE,
+            note = note,
+            hasSignal = hasSignal,
+            inTune = inTune,
             color = color,
+            emptyLabel = emptyLabel,
             modifier = Modifier.align(Alignment.BottomCenter),
         )
         NeighborLabel(
             title = stringResource(R.string.flat_side),
-            note = state.lowerNeighbor,
+            note = lowerNote,
             alignEnd = false,
             modifier = Modifier.align(Alignment.BottomStart),
         )
         NeighborLabel(
             title = stringResource(R.string.sharp_side),
-            note = state.upperNeighbor,
+            note = upperNote,
             alignEnd = true,
             modifier = Modifier.align(Alignment.BottomEnd),
         )
@@ -283,6 +356,7 @@ private fun NoteDisplay(
     hasSignal: Boolean,
     inTune: Boolean,
     color: Color,
+    emptyLabel: String,
     modifier: Modifier = Modifier,
 ) {
     val contentAlpha by animateFloatAsState(if (hasSignal) 1f else 0.4f, tween(300), label = "noteAlpha")
@@ -317,7 +391,7 @@ private fun NoteDisplay(
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             if (current == null) {
                 Text("–", color = TextMuted, fontSize = 96.sp, lineHeight = 100.sp, fontWeight = FontWeight.Light)
-                Text(stringResource(R.string.play_a_note), color = TextMuted, fontSize = 15.sp)
+                Text(emptyLabel, color = TextMuted, fontSize = 15.sp)
             } else {
                 Row {
                     Text(
@@ -367,24 +441,11 @@ private fun NeighborLabel(title: String, note: NoteName?, alignEnd: Boolean, mod
 }
 
 @Composable
-private fun ReadingsRow(state: TunerUiState) {
-    val hasNote = state.hasSignal && state.nearestMidi != null
+internal fun ReadingsRow(frequency: String, cents: String, target: String) {
     Row(Modifier.fillMaxWidth()) {
-        Reading(
-            label = stringResource(R.string.label_frequency),
-            value = if (hasNote) String.format(Locale.US, "%.1f Hz", state.frequency) else "— Hz",
-            modifier = Modifier.weight(1f),
-        )
-        Reading(
-            label = stringResource(R.string.label_cents),
-            value = if (hasNote) String.format(Locale.US, "%+.0f ¢", state.cents) else "— ¢",
-            modifier = Modifier.weight(1f),
-        )
-        Reading(
-            label = stringResource(R.string.label_target),
-            value = if (state.nearestMidi != null) String.format(Locale.US, "%.1f Hz", state.targetFrequency) else "— Hz",
-            modifier = Modifier.weight(1f),
-        )
+        Reading(stringResource(R.string.label_frequency), frequency, Modifier.weight(1f))
+        Reading(stringResource(R.string.label_cents), cents, Modifier.weight(1f))
+        Reading(stringResource(R.string.label_target), target, Modifier.weight(1f))
     }
 }
 
@@ -397,15 +458,7 @@ private fun Reading(label: String, value: String, modifier: Modifier = Modifier)
 }
 
 @Composable
-private fun StatusPill(state: TunerUiState, color: Color) {
-    val text = when {
-        state.errorMessage != null -> stringResource(R.string.error_microphone)
-        state.status == TuningStatus.IN_TUNE -> stringResource(R.string.status_in_tune)
-        state.status == TuningStatus.FLAT -> stringResource(R.string.status_flat)
-        state.status == TuningStatus.SHARP -> stringResource(R.string.status_sharp)
-        else -> stringResource(R.string.status_waiting)
-    }
-    val idle = state.status == TuningStatus.IDLE
+internal fun StatusPill(text: String, color: Color, idle: Boolean, pulsing: Boolean) {
     Surface(
         shape = CircleShape,
         color = color.copy(alpha = 0.14f),
@@ -415,7 +468,7 @@ private fun StatusPill(state: TunerUiState, color: Color) {
             Modifier.padding(horizontal = 18.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            PulsingDot(color, pulsing = idle && state.isListening)
+            PulsingDot(color, pulsing)
             Spacer(Modifier.width(10.dp))
             Text(
                 text = text,
