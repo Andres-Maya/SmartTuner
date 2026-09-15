@@ -37,6 +37,7 @@ class TunerViewModel(application: Application) : AndroidViewModel(application) {
 
     private val audioSource = MicrophoneAudioSource(application)
     private val smoother = PitchSmoother()
+    private val stringTracker = StringTuningTracker()
 
     private val _uiState = MutableStateFlow(TunerUiState())
     val uiState: StateFlow<TunerUiState> = _uiState.asStateFlow()
@@ -81,6 +82,7 @@ class TunerViewModel(application: Application) : AndroidViewModel(application) {
         listenJob = null
         if (identifyJob?.isActive == true) dismissIdentification()
         smoother.reset()
+        stringTracker.update(null)
         _uiState.update { it.copy(isListening = false, hasSignal = false) }
     }
 
@@ -123,6 +125,26 @@ class TunerViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.update { it.copy(identification = IdentificationUiState.Hidden) }
     }
 
+    /** Cierra el resultado y, si el instrumento tiene cuerdas, abre su pantalla de afinación. */
+    fun acceptIdentification() {
+        val outcome = (_uiState.value.identification as? IdentificationUiState.Finished)?.outcome
+        val instrument = (outcome as? IdentificationOutcome.Identified)
+            ?.best
+            ?.instrument
+            ?.takeUnless { it.isChromatic }
+
+        dismissIdentification()
+        if (instrument != null) {
+            stringTracker.reset()
+            _uiState.update { it.copy(mode = TunerMode.InstrumentTuning(instrument), tunedStrings = emptySet()) }
+        }
+    }
+
+    fun closeInstrumentTuning() {
+        stringTracker.reset()
+        _uiState.update { it.copy(mode = TunerMode.Chromatic, tunedStrings = emptySet()) }
+    }
+
     private suspend fun runIdentification(): IdentificationOutcome {
         val sampleRate = MicrophoneAudioSource.SAMPLE_RATE
         val yamnet = classifier ?: YamnetClassifier(getApplication()).also {
@@ -156,6 +178,7 @@ class TunerViewModel(application: Application) : AndroidViewModel(application) {
     private fun onPitch(result: PitchResult?) {
         val now = SystemClock.elapsedRealtime()
         if (result == null || result.probability < MIN_PROBABILITY) {
+            stringTracker.update(null)
             if (now - lastSignalAt > SIGNAL_HOLD_MS) {
                 smoother.reset()
                 if (_uiState.value.hasSignal) _uiState.update { it.copy(hasSignal = false) }
@@ -164,15 +187,23 @@ class TunerViewModel(application: Application) : AndroidViewModel(application) {
         }
         lastSignalAt = now
 
-        val reference = _uiState.value.referenceA4
+        val current = _uiState.value
+        val reference = current.referenceA4
         val midi = smoother.add(MusicTheory.frequencyToMidi(result.frequency, reference))
         val nearest = midi.roundToInt()
+        val frequency = MusicTheory.midiToFrequency(midi, reference)
+
+        // Se calcula fuera de update {} porque el tracker tiene estado y update puede reintentar.
+        val tunedStrings = (current.mode as? TunerMode.InstrumentTuning)
+            ?.let { stringTracker.update(it.instrument.closestString(frequency, reference)) }
+
         _uiState.update {
             it.copy(
                 hasSignal = true,
-                frequency = MusicTheory.midiToFrequency(midi, reference),
+                frequency = frequency,
                 nearestMidi = nearest,
                 cents = (midi - nearest) * 100f,
+                tunedStrings = tunedStrings ?: it.tunedStrings,
             )
         }
     }

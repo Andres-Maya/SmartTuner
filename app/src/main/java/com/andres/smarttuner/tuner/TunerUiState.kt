@@ -2,8 +2,10 @@ package com.andres.smarttuner.tuner
 
 import com.andres.smarttuner.ai.IdentificationOutcome
 import com.andres.smarttuner.music.AccidentalStyle
+import com.andres.smarttuner.music.Instrument
 import com.andres.smarttuner.music.MusicTheory
 import com.andres.smarttuner.music.NoteName
+import com.andres.smarttuner.music.StringMatch
 import kotlin.math.abs
 
 enum class TuningStatus { IDLE, FLAT, IN_TUNE, SHARP }
@@ -16,6 +18,13 @@ sealed interface IdentificationUiState {
     data class Finished(val outcome: IdentificationOutcome) : IdentificationUiState
 
     data object Failed : IdentificationUiState
+}
+
+/** Pantalla visible: afinador cromático o afinación por cuerdas de un instrumento. */
+sealed interface TunerMode {
+    data object Chromatic : TunerMode
+
+    data class InstrumentTuning(val instrument: Instrument) : TunerMode
 }
 
 data class TunerUiState(
@@ -31,6 +40,9 @@ data class TunerUiState(
     val accidentalStyle: AccidentalStyle = AccidentalStyle.SHARPS,
     val errorMessage: String? = null,
     val identification: IdentificationUiState = IdentificationUiState.Hidden,
+    val mode: TunerMode = TunerMode.Chromatic,
+    /** Números de cuerda ya afinados en [TunerMode.InstrumentTuning]. */
+    val tunedStrings: Set<Int> = emptySet(),
 ) {
     val note: NoteName? get() = nearestMidi?.let { MusicTheory.noteName(it, accidentalStyle) }
 
@@ -48,6 +60,13 @@ data class TunerUiState(
             cents < 0f -> TuningStatus.FLAT
             else -> TuningStatus.SHARP
         }
+
+    /** Cuerda más cercana a la última frecuencia; se conserva atenuada durante el silencio. */
+    val stringMatch: StringMatch?
+        get() = (mode as? TunerMode.InstrumentTuning)
+            ?.instrument
+            ?.takeIf { frequency > 0f }
+            ?.closestString(frequency, referenceA4)
 
     companion object {
         const val IN_TUNE_CENTS = 5f
