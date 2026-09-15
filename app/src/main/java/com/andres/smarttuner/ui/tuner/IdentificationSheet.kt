@@ -2,6 +2,8 @@ package com.andres.smarttuner.ui.tuner
 
 import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloat
@@ -14,6 +16,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,13 +28,20 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -39,7 +49,10 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -47,14 +60,17 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.andres.smarttuner.R
 import com.andres.smarttuner.ai.IdentificationOutcome
 import com.andres.smarttuner.ai.InstrumentCandidate
 import com.andres.smarttuner.music.Instrument
+import com.andres.smarttuner.music.InstrumentFamily
 import com.andres.smarttuner.tuner.IdentificationUiState
 import com.andres.smarttuner.ui.theme.Accent
 import com.andres.smarttuner.ui.theme.InTune
@@ -72,10 +88,14 @@ import kotlin.math.roundToInt
 fun IdentificationSheet(
     state: IdentificationUiState,
     onRetry: () -> Unit,
-    onAccept: () -> Unit,
+    onAccept: (Instrument?) -> Unit,
     onDismiss: () -> Unit,
 ) {
     if (state == IdentificationUiState.Hidden) return
+
+    // La IA preselecciona el más probable; el usuario puede elegir otro de las opciones.
+    val identified = (state as? IdentificationUiState.Finished)?.outcome as? IdentificationOutcome.Identified
+    var selected by rememberSaveable(identified) { mutableStateOf(identified?.best?.instrument) }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -86,6 +106,7 @@ fun IdentificationSheet(
         Column(
             Modifier
                 .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 24.dp)
                 .padding(bottom = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -100,7 +121,11 @@ fun IdentificationSheet(
                     when (current) {
                         is IdentificationUiState.Listening -> ListeningContent(current.progress)
                         is IdentificationUiState.Finished -> when (val outcome = current.outcome) {
-                            is IdentificationOutcome.Identified -> IdentifiedContent(outcome)
+                            is IdentificationOutcome.Identified -> IdentifiedContent(
+                                outcome = outcome,
+                                selected = selected ?: outcome.best.instrument,
+                                onSelect = { selected = it },
+                            )
                             IdentificationOutcome.NoInstrument -> MessageContent(
                                 title = R.string.identify_none_title,
                                 body = R.string.identify_none_body,
@@ -121,10 +146,7 @@ fun IdentificationSheet(
                     Text(stringResource(R.string.identify_cancel), color = TextMuted)
                 }
             } else {
-                val tuningInstrument = ((state as? IdentificationUiState.Finished)?.outcome as? IdentificationOutcome.Identified)
-                    ?.best
-                    ?.instrument
-                    ?.takeUnless { it.isChromatic }
+                val tuningInstrument = selected?.takeIf { identified != null }?.takeUnless { it.isChromatic }
                 if (tuningInstrument != null) {
                     Text(
                         text = stringResource(R.string.identify_accept_hint, tuningInstrument.displayName),
@@ -146,7 +168,7 @@ fun IdentificationSheet(
                         Text(stringResource(R.string.identify_retry), color = Accent)
                     }
                     Button(
-                        onClick = onAccept,
+                        onClick = { onAccept(if (identified != null) selected else null) },
                         shape = CircleShape,
                         colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = NightDeep),
                         modifier = Modifier
@@ -217,20 +239,29 @@ private fun ListeningContent(progress: Float) {
 }
 
 @Composable
-private fun IdentifiedContent(outcome: IdentificationOutcome.Identified) {
+private fun IdentifiedContent(
+    outcome: IdentificationOutcome.Identified,
+    selected: Instrument,
+    onSelect: (Instrument) -> Unit,
+) {
     val best = outcome.best
-    val confidence = Confidence.of(best.probability)
-    val name = instrumentName(best.instrument, outcome.otherLabel)
+    val selectedCandidate = outcome.candidates.first { it.instrument == selected }
+    val confidence = Confidence.of(selectedCandidate.probability)
 
-    InstrumentIcon(best.instrument, contentDescription = name, modifier = Modifier.size(96.dp))
-    Spacer(Modifier.height(12.dp))
-    Text(text = name, fontSize = 28.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+    Crossfade(targetState = selected, label = "selectedInstrument") { instrument ->
+        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+            val name = instrumentName(instrument, outcome.otherLabel)
+            InstrumentIcon(instrument, contentDescription = name, modifier = Modifier.size(84.dp))
+            Spacer(Modifier.height(10.dp))
+            Text(text = name, fontSize = 28.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+        }
+    }
     Spacer(Modifier.height(8.dp))
     Surface(shape = CircleShape, color = confidence.color.copy(alpha = 0.14f)) {
         Text(
             text = stringResource(
                 R.string.identify_confidence,
-                (best.probability * 100).roundToInt(),
+                (selectedCandidate.probability * 100).roundToInt(),
                 stringResource(confidence.label),
             ),
             color = confidence.color,
@@ -239,28 +270,52 @@ private fun IdentifiedContent(outcome: IdentificationOutcome.Identified) {
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
         )
     }
+    if (selected != best.instrument) {
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = stringResource(R.string.identify_selected_by_user, instrumentName(best.instrument, outcome.otherLabel)),
+            color = TextMuted,
+            fontSize = 12.sp,
+        )
+    }
 
-    Spacer(Modifier.height(24.dp))
+    Spacer(Modifier.height(22.dp))
     Text(
-        text = stringResource(R.string.identify_probabilities),
+        text = stringResource(R.string.identify_choose_title),
         color = TextMuted,
         fontSize = 11.sp,
         letterSpacing = 1.sp,
         fontWeight = FontWeight.SemiBold,
         modifier = Modifier.fillMaxWidth(),
     )
-    outcome.candidates
-        .take(3)
-        .filter { it.probability >= 0.01f }
-        .forEach { candidate ->
-            Spacer(Modifier.height(10.dp))
-            CandidateBar(candidate, outcome.otherLabel, highlighted = candidate == best)
+    Spacer(Modifier.height(2.dp))
+    Text(
+        text = stringResource(R.string.identify_choose_hint),
+        color = TextMuted,
+        fontSize = 12.sp,
+        modifier = Modifier.fillMaxWidth(),
+    )
+    Spacer(Modifier.height(10.dp))
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .selectableGroup(),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        outcome.options.forEach { candidate ->
+            CandidateOption(
+                candidate = candidate,
+                otherLabel = outcome.otherLabel,
+                selected = candidate.instrument == selected,
+                onSelect = { onSelect(candidate.instrument) },
+            )
         }
+    }
 
-    if (best.instrument == Instrument.VIOLIN || best.instrument == Instrument.VIOLA) {
-        Spacer(Modifier.height(16.dp))
+    if (best.instrument.family == InstrumentFamily.BOWED) {
+        Spacer(Modifier.height(14.dp))
         Text(
-            text = stringResource(R.string.identify_violin_viola_hint),
+            text = stringResource(R.string.identify_bowed_hint),
             color = TextMuted,
             fontSize = 12.sp,
             textAlign = TextAlign.Center,
@@ -269,25 +324,48 @@ private fun IdentifiedContent(outcome: IdentificationOutcome.Identified) {
 }
 
 @Composable
-private fun CandidateBar(candidate: InstrumentCandidate, otherLabel: String?, highlighted: Boolean) {
+private fun CandidateOption(
+    candidate: InstrumentCandidate,
+    otherLabel: String?,
+    selected: Boolean,
+    onSelect: () -> Unit,
+) {
+    val shape = RoundedCornerShape(14.dp)
+    val borderColor by animateColorAsState(if (selected) Accent else Color.Transparent, label = "optionBorder")
+    val background by animateColorAsState(
+        targetValue = if (selected) Accent.copy(alpha = 0.12f) else NightSurfaceHigh.copy(alpha = 0.5f),
+        label = "optionBackground",
+    )
     val fraction = remember { Animatable(0f) }
     LaunchedEffect(candidate.probability) {
         fraction.animateTo(candidate.probability, tween(700))
     }
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        InstrumentIcon(candidate.instrument, contentDescription = null, modifier = Modifier.size(22.dp))
+
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(background)
+            .border(1.5.dp, borderColor, shape)
+            .selectable(selected = selected, role = Role.RadioButton, onClick = onSelect)
+            .padding(start = 12.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        InstrumentIcon(candidate.instrument, contentDescription = null, modifier = Modifier.size(24.dp))
         Spacer(Modifier.width(10.dp))
         Text(
             text = instrumentName(candidate.instrument, otherLabel),
-            color = if (highlighted) TextPrimary else TextMuted,
+            color = if (selected) TextPrimary else TextMuted,
             fontSize = 14.sp,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
             maxLines = 1,
-            modifier = Modifier.width(104.dp),
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.width(96.dp),
         )
         Box(
             Modifier
                 .weight(1f)
-                .height(8.dp)
+                .height(6.dp)
                 .clip(CircleShape)
                 .background(NightSurfaceHigh),
         ) {
@@ -296,15 +374,22 @@ private fun CandidateBar(candidate: InstrumentCandidate, otherLabel: String?, hi
                     .fillMaxHeight()
                     .fillMaxWidth(fraction.value)
                     .clip(CircleShape)
-                    .background(if (highlighted) Accent else TextMuted.copy(alpha = 0.6f)),
+                    .background(if (selected) Accent else TextMuted.copy(alpha = 0.6f)),
             )
         }
         Text(
             text = "${(candidate.probability * 100).roundToInt()}%",
-            color = if (highlighted) TextPrimary else TextMuted,
+            color = if (selected) TextPrimary else TextMuted,
             fontSize = 13.sp,
             textAlign = TextAlign.End,
-            modifier = Modifier.width(48.dp),
+            modifier = Modifier.width(44.dp),
+        )
+        // onClick = null: la fila completa es la que se selecciona.
+        RadioButton(
+            selected = selected,
+            onClick = null,
+            colors = RadioButtonDefaults.colors(selectedColor = Accent, unselectedColor = TextMuted),
+            modifier = Modifier.padding(start = 8.dp),
         )
     }
 }

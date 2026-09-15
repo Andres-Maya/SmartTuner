@@ -37,9 +37,11 @@
     <string name="confidence_high">alta</string>
     <string name="confidence_medium">media</string>
     <string name="confidence_low">baja</string>
-    <string name="identify_probabilities">PROBABILIDADES</string>
+    <string name="identify_choose_title">ELIGE EL INSTRUMENTO A AFINAR</string>
+    <string name="identify_choose_hint">La IA preseleccionó el más probable. Si se equivocó, toca el correcto.</string>
+    <string name="identify_selected_by_user">Elegido por ti · la IA sugería %1$s</string>
     <string name="identify_other_named">Otro · %1$s</string>
-    <string name="identify_violin_viola_hint">El violín y la viola suenan muy parecido: tocar la cuerda más grave (Sol del violín o Do de la viola) ayuda a distinguirlos.</string>
+    <string name="identify_bowed_hint">Violín, viola y violonchelo suenan muy parecido al micrófono del teléfono: confirma cuál estás tocando.</string>
     <string name="identify_none_title">No reconocí un instrumento</string>
     <string name="identify_none_body">Acércate al micrófono y toca varias notas claras mientras escucho.</string>
     <string name="identify_error_title">No se pudo usar la IA</string>

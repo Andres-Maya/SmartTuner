@@ -4,6 +4,9 @@ import com.andres.smarttuner.music.Instrument
 import kotlin.math.abs
 import kotlin.math.pow
 
+private const val MAX_LIKELY_OPTIONS = 3
+private const val MIN_OPTION_PROBABILITY = 0.01f
+
 data class InstrumentCandidate(
     val instrument: Instrument,
     /** Probabilidad relativa entre los candidatos (suman 1). */
@@ -18,6 +21,20 @@ sealed interface IdentificationOutcome {
         val otherLabel: String?,
     ) : IdentificationOutcome {
         val best: InstrumentCandidate get() = candidates.first()
+
+        /**
+         * Opciones para que el usuario elija: los más probables y, además, toda la familia del mejor
+         * (violín, viola y violonchelo suenan parecido al micrófono y el modelo los confunde).
+         */
+        val options: List<InstrumentCandidate>
+            get() {
+                val family = best.instrument.family
+                val likely = candidates.take(MAX_LIKELY_OPTIONS).filter { it.probability >= MIN_OPTION_PROBABILITY }
+                val sameFamily = candidates.filter { family != null && it.instrument.family == family }
+                return (listOf(best) + likely + sameFamily)
+                    .distinctBy { it.instrument }
+                    .sortedByDescending { it.probability }
+            }
     }
 
     data object NoInstrument : IdentificationOutcome

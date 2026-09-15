@@ -21,6 +21,9 @@ data class StringMatch(
     val cents: Float,
 )
 
+/** Familias de timbre parecido, que el modelo de audio tiende a confundir entre sí. */
+enum class InstrumentFamily { BOWED, PLUCKED }
+
 /**
  * Instrumentos con su afinación estándar (altura real, no la escrita).
  * [playableRange] es el rango habitual de fundamentales en MIDI.
@@ -56,6 +59,13 @@ enum class Instrument(
         openStringsMidi.mapIndexed { index, midi -> InstrumentString(index + 1, midi) }
 
     val isChromatic: Boolean get() = strings.isEmpty()
+
+    val family: InstrumentFamily?
+        get() = when (this) {
+            VIOLIN, VIOLA, CELLO -> InstrumentFamily.BOWED
+            GUITAR, BASS, UKULELE -> InstrumentFamily.PLUCKED
+            OTHER -> null
+        }
 
     fun canPlay(midi: Float, toleranceSemitones: Float = 1f): Boolean =
         midi >= playableRange.first - toleranceSemitones && midi <= playableRange.last + toleranceSemitones

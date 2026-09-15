@@ -16,6 +16,7 @@ import com.andres.smarttuner.audio.AudioFrame
 import com.andres.smarttuner.audio.MicrophoneAudioSource
 import com.andres.smarttuner.audio.PitchResult
 import com.andres.smarttuner.music.AccidentalStyle
+import com.andres.smarttuner.music.Instrument
 import com.andres.smarttuner.music.MusicTheory
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -125,13 +126,12 @@ class TunerViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.update { it.copy(identification = IdentificationUiState.Hidden) }
     }
 
-    /** Cierra el resultado y, si el instrumento tiene cuerdas, abre su pantalla de afinación. */
-    fun acceptIdentification() {
-        val outcome = (_uiState.value.identification as? IdentificationUiState.Finished)?.outcome
-        val instrument = (outcome as? IdentificationOutcome.Identified)
-            ?.best
-            ?.instrument
-            ?.takeUnless { it.isChromatic }
+    /**
+     * Cierra el resultado y abre la afinación del instrumento elegido. La IA preselecciona el más
+     * probable, pero el usuario puede corregirla. Sin cuerdas (modo "Otro") solo cierra.
+     */
+    fun acceptIdentification(selected: Instrument?) {
+        val instrument = selected?.takeUnless { it.isChromatic }
 
         dismissIdentification()
         if (instrument != null) {
