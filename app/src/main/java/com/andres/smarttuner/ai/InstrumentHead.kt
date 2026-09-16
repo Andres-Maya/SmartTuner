@@ -2,6 +2,7 @@ package com.andres.smarttuner.ai
 
 import android.content.Context
 import android.util.Log
+import org.json.JSONArray
 import org.json.JSONObject
 import kotlin.math.exp
 import kotlin.math.ln
@@ -16,16 +17,19 @@ class InstrumentHead internal constructor(
     private val weights: Array<FloatArray>,
     private val bias: FloatArray,
     private val logFeatures: Boolean,
+    /** Normalización aprendida en el entrenamiento (vacía en modelos versión 1). */
+    private val mean: FloatArray = FloatArray(0),
+    private val scale: FloatArray = FloatArray(0),
 ) {
 
     /** Probabilidad por clase entrenada para una ventana de audio ya clasificada por YAMNet. */
     fun probabilities(scoresByIndex: FloatArray): Map<String, Float> {
+        val columns = min(weights.firstOrNull()?.size ?: 0, scoresByIndex.size)
+        val normalized = FloatArray(columns) { feature(it, scoresByIndex[it]) }
         val logits = FloatArray(labels.size) { label ->
             val row = weights[label]
             var sum = bias[label]
-            for (index in 0 until min(row.size, scoresByIndex.size)) {
-                sum += row[index] * feature(scoresByIndex[index])
-            }
+            for (index in 0 until columns) sum += row[index] * normalized[index]
             sum
         }
         val highest = logits.max()
@@ -34,7 +38,12 @@ class InstrumentHead internal constructor(
         return labels.indices.associate { labels[it] to exponentials[it] / total }
     }
 
-    private fun feature(score: Float): Float = if (logFeatures) ln(score + 1e-6f) else score
+    private fun feature(index: Int, score: Float): Float {
+        val value = if (logFeatures) ln(score + 1e-6f) else score
+        if (index >= mean.size || index >= scale.size) return value
+        val deviation = scale[index]
+        return if (deviation > 0f) (value - mean[index]) / deviation else value - mean[index]
+    }
 
     companion object {
         const val ASSET = "instrument_head.json"
@@ -71,8 +80,13 @@ class InstrumentHead internal constructor(
                 weights = weights,
                 bias = bias,
                 logFeatures = root.optString("featureTransform") == "log",
+                mean = root.optJSONArray("mean").toFloatArray(),
+                scale = root.optJSONArray("scale").toFloatArray(),
             )
         }
+
+        private fun JSONArray?.toFloatArray(): FloatArray =
+            if (this == null) FloatArray(0) else FloatArray(length()) { getDouble(it).toFloat() }
 
         private const val TAG = "InstrumentHead"
     }

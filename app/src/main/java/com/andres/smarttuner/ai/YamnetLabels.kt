@@ -15,6 +15,9 @@ internal object YamnetLabels {
     val CELLO = setOf("Cello")
     val UKULELE = setOf("Ukulele")
 
+    /** Evidencia de que suena música, aunque no se sepa con qué instrumento. */
+    val MUSIC = setOf("Music", "Musical instrument")
+
     /** Evidencia de familia sin instrumento concreto (YAMNet no tiene clase "Viola"). */
     val BOWED_FAMILY = setOf("Bowed string instrument", "String section", "Pizzicato")
     val PLUCKED_FAMILY = setOf("Plucked string instrument")

@@ -53,7 +53,8 @@ sealed interface IdentificationOutcome {
  * lo que permite reconocer la viola aunque YAMNet no tenga esa clase.
  *
  * Si además existe una capa entrenada con grabaciones propias ([InstrumentHead]), su resultado
- * pesa [HEAD_WEIGHT] y lo anterior queda como respaldo para las clases que esa capa no conoce.
+ * pesa hasta [HEAD_WEIGHT] **en proporción a su confianza**: si duda entre varias clases manda
+ * lo anterior, que además cubre las clases con las que esa capa no se entrenó.
  */
 class InstrumentFusion(
     private val minEvidence: Float = 0.05f,
@@ -70,8 +71,8 @@ class InstrumentFusion(
         if (windows.isEmpty()) return IdentificationOutcome.NoInstrument
 
         val head = headWindows.meanByLabel()
-        val headKnowsBackground = head.containsKey(InstrumentHead.BACKGROUND_LABEL)
-        if (headKnowsBackground && head.getValue(InstrumentHead.BACKGROUND_LABEL) >= BACKGROUND_THRESHOLD) {
+        // La capa propia decide QUÉ instrumento; si su clase más probable es "sin instrumento", se descarta.
+        if (head.isNotEmpty() && head.maxBy { it.value }.key == InstrumentHead.BACKGROUND_LABEL) {
             return IdentificationOutcome.NoInstrument
         }
 
@@ -118,11 +119,15 @@ class InstrumentFusion(
             put(Instrument.OTHER, other)
         }
 
-        // La capa propia solo puede descartar "no hay instrumento" si se entrenó con la clase
-        // background; si no, sigue mandando la evidencia mínima de YAMNet.
-        if (!headKnowsBackground && scores.values.max() < minEvidence) return IdentificationOutcome.NoInstrument
+        // YAMNet decide SI hay un instrumento. Sin esta puerta, la capa propia reparte el 100 %
+        // entre sus clases aunque el sonido sea ruido y siempre "reconocería" algo.
+        val musicEvidence = windows.meanOfMax(YamnetLabels.MUSIC)
+        if (scores.values.max() < minEvidence && musicEvidence < MUSIC_THRESHOLD) {
+            return IdentificationOutcome.NoInstrument
+        }
 
         val blended = blend(scores, head, registerWeight)
+
         val total = blended.values.sum()
         if (total <= 0f) return IdentificationOutcome.NoInstrument
         val candidates = blended
@@ -161,11 +166,13 @@ class InstrumentFusion(
         val learnedTotal = learned.values.sum()
         if (learnedTotal <= 0f) return fusionScores
 
+        // Una capa dubitativa (probabilidad máxima baja) casi no mueve el resultado.
+        val weight = HEAD_WEIGHT * (head.values.max().coerceIn(0f, 1f))
         val genericTotal = fusionScores.values.sum()
         return fusionScores.keys.associateWith { instrument ->
             val fromHead = learned.getValue(instrument) / learnedTotal
             val fromYamnet = if (genericTotal > 0f) fusionScores.getValue(instrument) / genericTotal else 0f
-            HEAD_WEIGHT * fromHead + (1f - HEAD_WEIGHT) * fromYamnet
+            weight * fromHead + (1f - weight) * fromYamnet
         }
     }
 
@@ -193,7 +200,7 @@ class InstrumentFusion(
 
     private companion object {
         const val OPEN_STRING_TOLERANCE = 0.3f // 30 cents
-        const val HEAD_WEIGHT = 0.75f
-        const val BACKGROUND_THRESHOLD = 0.6f
+        const val HEAD_WEIGHT = 0.85f
+        const val MUSIC_THRESHOLD = 0.15f
     }
 }
