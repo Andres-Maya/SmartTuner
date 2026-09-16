@@ -48,6 +48,8 @@ sealed interface IdentificationOutcome {
  * 2. **Registro** — alturas detectadas por YIN. Un instrumento que no puede producir una nota
  *    escuchada se penaliza (likelihood con tasa de error [pitchErrorRate]) y las notas que
  *    coinciden con sus cuerdas al aire lo refuerzan, algo muy común al afinar.
+ *    Ese refuerzo NO se aplica a la capa entrenada: las notas pisadas de un instrumento coinciden
+ *    con las cuerdas al aire de otro (Re4 de chelo = Re al aire de viola) y la volvía del revés.
  *
  * La evidencia de familia se reparte entre sus instrumentos según timbre × registro,
  * lo que permite reconocer la viola aunque YAMNet no tenga esa clase.
@@ -88,6 +90,9 @@ class InstrumentFusion(
             .map { label -> label to windows.meanOfMax(setOf(label)) }
             .maxByOrNull { it.second }
         val other = strongestOther?.second ?: 0f
+        // YAMNet confunde las cuerdas frotadas con "Singing". Si la capa propia tiene su clase
+        // "other", entrenada con grabaciones reales, esa decide y la genérica se ignora.
+        val genericOther = if (head.containsKey(Instrument.OTHER.datasetLabel)) 0f else other
 
         val registerWeight = { instrument: Instrument ->
             pitchLikelihood(instrument, pitchesMidi) * openStringBonus(instrument, pitchesMidi)
@@ -116,7 +121,7 @@ class InstrumentFusion(
                     registerWeight = registerWeight,
                 ),
             )
-            put(Instrument.OTHER, other)
+            put(Instrument.OTHER, genericOther)
         }
 
         // YAMNet decide SI hay un instrumento. Sin esta puerta, la capa propia reparte el 100 %
@@ -126,7 +131,8 @@ class InstrumentFusion(
             return IdentificationOutcome.NoInstrument
         }
 
-        val blended = blend(scores, head, registerWeight)
+        // La capa entrenada solo se corrige con el rango físico del instrumento.
+        val blended = blend(scores, head) { pitchLikelihood(it, pitchesMidi) }
 
         val total = blended.values.sum()
         if (total <= 0f) return IdentificationOutcome.NoInstrument
@@ -146,11 +152,18 @@ class InstrumentFusion(
         return pitchErrorRate.pow(outOfRange)
     }
 
-    /** Entre 1 y 2 según la fracción de notas que coinciden con cuerdas al aire. */
+    /**
+     * Entre 1 y 2 según la fracción de notas que coinciden con cuerdas al aire. Acepta también la
+     * octava superior: el micrófono del teléfono atenúa los graves y YIN suele subir una octava
+     * en el chelo y el bajo.
+     */
     internal fun openStringBonus(instrument: Instrument, pitchesMidi: List<Float>): Float {
         if (pitchesMidi.size < minPitchedFrames || instrument.isChromatic) return 1f
         val nearOpenString = pitchesMidi.count { pitch ->
-            instrument.strings.any { abs(pitch - it.midi) <= OPEN_STRING_TOLERANCE }
+            instrument.strings.any { string ->
+                abs(pitch - string.midi) <= OPEN_STRING_TOLERANCE ||
+                    abs(pitch - string.midi - 12f) <= OPEN_STRING_TOLERANCE
+            }
         }.toFloat() / pitchesMidi.size
         return 1f + nearOpenString
     }
@@ -159,10 +172,10 @@ class InstrumentFusion(
     private fun blend(
         fusionScores: Map<Instrument, Float>,
         head: Map<String, Float>,
-        registerWeight: (Instrument) -> Float,
+        rangeWeight: (Instrument) -> Float,
     ): Map<Instrument, Float> {
         if (head.isEmpty()) return fusionScores
-        val learned = fusionScores.keys.associateWith { (head[it.datasetLabel] ?: 0f) * registerWeight(it) }
+        val learned = fusionScores.keys.associateWith { (head[it.datasetLabel] ?: 0f) * rangeWeight(it) }
         val learnedTotal = learned.values.sum()
         if (learnedTotal <= 0f) return fusionScores
 

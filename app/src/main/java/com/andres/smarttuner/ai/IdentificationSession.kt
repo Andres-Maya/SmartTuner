@@ -30,6 +30,13 @@ class IdentificationSession(
 
     val analyzedWindows: Int get() = windowScores.size
 
+    /** Media de las probabilidades de la capa entrenada; sirve para depurar desde el log. */
+    val headSummary: Map<String, Float>
+        get() = headScores
+            .flatMap { it.entries }
+            .groupBy({ it.key }, { it.value })
+            .mapValues { (_, values) -> values.average().toFloat() }
+
     /** Segundos de audio recibidos; no depende de lo que tarde el modelo en procesarlos. */
     val acceptedSeconds: Float get() = acceptedSamples.toFloat() / sampleRate
 
