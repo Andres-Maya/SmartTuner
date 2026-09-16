@@ -7,7 +7,7 @@ El modelo base (YAMNet) ya sabe escuchar; con tus grabaciones aprende a distingu
 Cómo funciona el entrenamiento: se pasa cada ventana de audio por el mismo `yamnet.tflite`
 que la app lleva en `assets`, se toman sus **521 puntuaciones** como características y encima
 se entrena una regresión logística multinomial (una capa lineal + softmax). El resultado es un
-archivo de ~30 kB que la app aplica sin dependencias nuevas, y las características de
+archivo de ~110 kB que la app aplica sin dependencias nuevas, y las características de
 entrenamiento son idénticas a las que el teléfono calcula en tiempo real.
 
 ## 1. Estructura
