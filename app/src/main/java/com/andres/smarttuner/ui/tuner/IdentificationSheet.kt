@@ -3,8 +3,6 @@ package com.andres.smarttuner.ui.tuner
 import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.Crossfade
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
@@ -14,43 +12,28 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.RadioButton
-import androidx.compose.material3.RadioButtonDefaults
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -60,27 +43,26 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.andres.smarttuner.R
 import com.andres.smarttuner.ai.IdentificationOutcome
 import com.andres.smarttuner.ai.InstrumentCandidate
 import com.andres.smarttuner.music.Instrument
 import com.andres.smarttuner.music.InstrumentFamily
 import com.andres.smarttuner.tuner.IdentificationUiState
-import com.andres.smarttuner.ui.theme.Accent
-import com.andres.smarttuner.ui.theme.InTune
-import com.andres.smarttuner.ui.theme.NearlyInTune
-import com.andres.smarttuner.ui.theme.NightDeep
-import com.andres.smarttuner.ui.theme.NightSurface
-import com.andres.smarttuner.ui.theme.NightSurfaceHigh
-import com.andres.smarttuner.ui.theme.OutOfTune
-import com.andres.smarttuner.ui.theme.TextMuted
-import com.andres.smarttuner.ui.theme.TextPrimary
+import com.andres.smarttuner.ui.components.Badge
+import com.andres.smarttuner.ui.components.GhostButton
+import com.andres.smarttuner.ui.components.MessageBlock
+import com.andres.smarttuner.ui.components.PrimaryButton
+import com.andres.smarttuner.ui.components.ProbabilityBar
+import com.andres.smarttuner.ui.components.SecondaryButton
+import com.andres.smarttuner.ui.components.SectionLabel
+import com.andres.smarttuner.ui.components.SelectableOption
+import com.andres.smarttuner.ui.theme.TunerColors
+import com.andres.smarttuner.ui.theme.TunerTheme
 import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -93,6 +75,9 @@ fun IdentificationSheet(
 ) {
     if (state == IdentificationUiState.Hidden) return
 
+    val colors = TunerTheme.colors
+    val spacing = TunerTheme.spacing
+
     // La IA preselecciona el más probable; el usuario puede elegir otro de las opciones.
     val identified = (state as? IdentificationUiState.Finished)?.outcome as? IdentificationOutcome.Identified
     var selected by rememberSaveable(identified) { mutableStateOf(identified?.best?.instrument) }
@@ -100,15 +85,15 @@ fun IdentificationSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = NightSurface,
-        contentColor = TextPrimary,
+        containerColor = colors.surface,
+        contentColor = colors.textPrimary,
     ) {
         Column(
             Modifier
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.dp)
-                .padding(bottom = 16.dp),
+                .padding(horizontal = spacing.xxl)
+                .padding(bottom = spacing.lg),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             AnimatedContent(
@@ -126,12 +111,12 @@ fun IdentificationSheet(
                                 selected = selected ?: outcome.best.instrument,
                                 onSelect = { selected = it },
                             )
-                            IdentificationOutcome.NoInstrument -> MessageContent(
+                            IdentificationOutcome.NoInstrument -> UnknownContent(
                                 title = R.string.identify_none_title,
                                 body = R.string.identify_none_body,
                             )
                         }
-                        IdentificationUiState.Failed -> MessageContent(
+                        IdentificationUiState.Failed -> UnknownContent(
                             title = R.string.identify_error_title,
                             body = R.string.identify_error_body,
                         )
@@ -140,43 +125,31 @@ fun IdentificationSheet(
                 }
             }
 
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(spacing.xxl))
             if (state is IdentificationUiState.Listening) {
-                TextButton(onClick = onDismiss) {
-                    Text(stringResource(R.string.identify_cancel), color = TextMuted)
-                }
+                GhostButton(stringResource(R.string.identify_cancel), onClick = onDismiss)
             } else {
                 val tuningInstrument = selected?.takeIf { identified != null }?.takeUnless { it.isChromatic }
                 if (tuningInstrument != null) {
                     Text(
                         text = stringResource(R.string.identify_accept_hint, tuningInstrument.displayName),
-                        color = TextMuted,
-                        fontSize = 13.sp,
+                        color = colors.textMuted,
+                        style = TunerTheme.typography.caption,
                         textAlign = TextAlign.Center,
                     )
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(spacing.md))
                 }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    OutlinedButton(
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(spacing.md)) {
+                    SecondaryButton(
+                        text = stringResource(R.string.identify_retry),
                         onClick = onRetry,
-                        shape = CircleShape,
-                        border = BorderStroke(1.dp, Accent.copy(alpha = 0.5f)),
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(48.dp),
-                    ) {
-                        Text(stringResource(R.string.identify_retry), color = Accent)
-                    }
-                    Button(
+                        modifier = Modifier.weight(1f),
+                    )
+                    PrimaryButton(
+                        text = stringResource(R.string.identify_accept),
                         onClick = { onAccept(if (identified != null) selected else null) },
-                        shape = CircleShape,
-                        colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = NightDeep),
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(48.dp),
-                    ) {
-                        Text(stringResource(R.string.identify_accept), fontWeight = FontWeight.SemiBold)
-                    }
+                        modifier = Modifier.weight(1f),
+                    )
                 }
             }
         }
@@ -185,6 +158,9 @@ fun IdentificationSheet(
 
 @Composable
 private fun ListeningContent(progress: Float) {
+    val colors = TunerTheme.colors
+    val spacing = TunerTheme.spacing
+    val typography = TunerTheme.typography
     val animatedProgress by animateFloatAsState(progress, tween(150), label = "identifyProgress")
     val transition = rememberInfiniteTransition(label = "rings")
     val ringPhase by transition.animateFloat(
@@ -194,15 +170,15 @@ private fun ListeningContent(progress: Float) {
         label = "ringPhase",
     )
 
-    Text(stringResource(R.string.identify_listening_title), fontSize = 22.sp, fontWeight = FontWeight.Bold)
-    Spacer(Modifier.height(6.dp))
+    Text(stringResource(R.string.identify_listening_title), color = colors.textPrimary, style = typography.title)
+    Spacer(Modifier.height(spacing.sm))
     Text(
         text = stringResource(R.string.identify_listening_body),
-        color = TextMuted,
-        fontSize = 14.sp,
+        color = colors.textMuted,
+        style = typography.bodySmall,
         textAlign = TextAlign.Center,
     )
-    Spacer(Modifier.height(20.dp))
+    Spacer(Modifier.height(spacing.xl))
     Box(
         Modifier
             .size(180.dp)
@@ -211,7 +187,7 @@ private fun ListeningContent(progress: Float) {
                 for (ring in 0..2) {
                     val phase = (ringPhase + ring / 3f) % 1f
                     drawCircle(
-                        color = Accent.copy(alpha = 0.3f * (1f - phase)),
+                        color = colors.accent.copy(alpha = 0.3f * (1f - phase)),
                         radius = size.minDimension / 2f * (0.6f + 0.4f * phase),
                     )
                 }
@@ -221,21 +197,21 @@ private fun ListeningContent(progress: Float) {
         Box(
             Modifier
                 .size(116.dp)
-                .clip(CircleShape)
-                .background(NightDeep),
+                .clip(TunerTheme.shapes.pill)
+                .background(colors.backgroundDeep),
         )
         CircularProgressIndicator(
             progress = { animatedProgress },
             modifier = Modifier.size(116.dp),
-            color = Accent,
-            trackColor = NightSurfaceHigh,
+            color = colors.accent,
+            trackColor = colors.surfaceHigh,
             strokeWidth = 6.dp,
             strokeCap = StrokeCap.Round,
         )
-        Text("${(animatedProgress * 100).roundToInt()}%", fontSize = 24.sp, fontWeight = FontWeight.SemiBold)
+        Text("${(animatedProgress * 100).roundToInt()}%", color = colors.textPrimary, style = typography.progress)
     }
-    Spacer(Modifier.height(12.dp))
-    Text(stringResource(R.string.identify_listening_footer), color = TextMuted, fontSize = 12.sp)
+    Spacer(Modifier.height(spacing.md))
+    Text(stringResource(R.string.identify_listening_footer), color = colors.textMuted, style = typography.footnote)
 }
 
 @Composable
@@ -244,6 +220,9 @@ private fun IdentifiedContent(
     selected: Instrument,
     onSelect: (Instrument) -> Unit,
 ) {
+    val colors = TunerTheme.colors
+    val spacing = TunerTheme.spacing
+    val typography = TunerTheme.typography
     val best = outcome.best
     val selectedCandidate = outcome.candidates.first { it.instrument == selected }
     val confidence = Confidence.of(selectedCandidate.probability)
@@ -251,56 +230,45 @@ private fun IdentifiedContent(
     Crossfade(targetState = selected, label = "selectedInstrument") { instrument ->
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
             val name = instrumentName(instrument, outcome.otherLabel)
-            InstrumentIcon(instrument, contentDescription = name, modifier = Modifier.size(84.dp))
-            Spacer(Modifier.height(10.dp))
-            Text(text = name, fontSize = 28.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+            InstrumentIcon(instrument, contentDescription = name, modifier = Modifier.size(TunerTheme.sizes.iconLarge))
+            Spacer(Modifier.height(spacing.md))
+            Text(text = name, color = colors.textPrimary, style = typography.screenTitle, textAlign = TextAlign.Center)
         }
     }
-    Spacer(Modifier.height(8.dp))
-    Surface(shape = CircleShape, color = confidence.color.copy(alpha = 0.14f)) {
-        Text(
-            text = stringResource(
-                R.string.identify_confidence,
-                (selectedCandidate.probability * 100).roundToInt(),
-                stringResource(confidence.label),
-            ),
-            color = confidence.color,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-        )
-    }
+    Spacer(Modifier.height(spacing.sm))
+    Badge(
+        text = stringResource(
+            R.string.identify_confidence,
+            (selectedCandidate.probability * 100).roundToInt(),
+            stringResource(confidence.label),
+        ),
+        color = confidence.color(colors),
+    )
     if (selected != best.instrument) {
-        Spacer(Modifier.height(6.dp))
+        Spacer(Modifier.height(spacing.sm))
         Text(
             text = stringResource(R.string.identify_selected_by_user, instrumentName(best.instrument, outcome.otherLabel)),
-            color = TextMuted,
-            fontSize = 12.sp,
+            color = colors.textMuted,
+            style = typography.footnote,
         )
     }
 
-    Spacer(Modifier.height(22.dp))
-    Text(
-        text = stringResource(R.string.identify_choose_title),
-        color = TextMuted,
-        fontSize = 11.sp,
-        letterSpacing = 1.sp,
-        fontWeight = FontWeight.SemiBold,
-        modifier = Modifier.fillMaxWidth(),
-    )
-    Spacer(Modifier.height(2.dp))
+    Spacer(Modifier.height(spacing.xxl))
+    SectionLabel(stringResource(R.string.identify_choose_title), Modifier.fillMaxWidth())
     Text(
         text = stringResource(R.string.identify_choose_hint),
-        color = TextMuted,
-        fontSize = 12.sp,
-        modifier = Modifier.fillMaxWidth(),
+        color = colors.textMuted,
+        style = typography.footnote,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = spacing.xxs),
     )
-    Spacer(Modifier.height(10.dp))
+    Spacer(Modifier.height(spacing.md))
     Column(
         Modifier
             .fillMaxWidth()
             .selectableGroup(),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(spacing.sm),
     ) {
         outcome.options.forEach { candidate ->
             CandidateOption(
@@ -313,11 +281,11 @@ private fun IdentifiedContent(
     }
 
     if (best.instrument.family == InstrumentFamily.BOWED) {
-        Spacer(Modifier.height(14.dp))
+        Spacer(Modifier.height(spacing.lg))
         Text(
             text = stringResource(R.string.identify_bowed_hint),
-            color = TextMuted,
-            fontSize = 12.sp,
+            color = colors.textMuted,
+            style = typography.footnote,
             textAlign = TextAlign.Center,
         )
     }
@@ -330,81 +298,46 @@ private fun CandidateOption(
     selected: Boolean,
     onSelect: () -> Unit,
 ) {
-    val shape = RoundedCornerShape(14.dp)
-    val borderColor by animateColorAsState(if (selected) Accent else Color.Transparent, label = "optionBorder")
-    val background by animateColorAsState(
-        targetValue = if (selected) Accent.copy(alpha = 0.12f) else NightSurfaceHigh.copy(alpha = 0.5f),
-        label = "optionBackground",
-    )
-    val fraction = remember { Animatable(0f) }
-    LaunchedEffect(candidate.probability) {
-        fraction.animateTo(candidate.probability, tween(700))
-    }
+    val colors = TunerTheme.colors
+    val spacing = TunerTheme.spacing
+    val typography = TunerTheme.typography
+    val textColor = if (selected) colors.textPrimary else colors.textMuted
 
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .clip(shape)
-            .background(background)
-            .border(1.5.dp, borderColor, shape)
-            .selectable(selected = selected, role = Role.RadioButton, onClick = onSelect)
-            .padding(start = 12.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        InstrumentIcon(candidate.instrument, contentDescription = null, modifier = Modifier.size(24.dp))
-        Spacer(Modifier.width(10.dp))
+    SelectableOption(selected = selected, onSelect = onSelect) {
+        InstrumentIcon(candidate.instrument, contentDescription = null, modifier = Modifier.size(TunerTheme.sizes.iconSmall))
+        Spacer(Modifier.width(spacing.md))
         Text(
             text = instrumentName(candidate.instrument, otherLabel),
-            color = if (selected) TextPrimary else TextMuted,
-            fontSize = 14.sp,
-            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+            color = textColor,
+            style = typography.bodySmall.copy(fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.width(96.dp),
         )
-        Box(
-            Modifier
-                .weight(1f)
-                .height(6.dp)
-                .clip(CircleShape)
-                .background(NightSurfaceHigh),
-        ) {
-            Box(
-                Modifier
-                    .fillMaxHeight()
-                    .fillMaxWidth(fraction.value)
-                    .clip(CircleShape)
-                    .background(if (selected) Accent else TextMuted.copy(alpha = 0.6f)),
-            )
-        }
+        ProbabilityBar(
+            fraction = candidate.probability,
+            color = if (selected) colors.accent else colors.textMuted.copy(alpha = 0.6f),
+            modifier = Modifier.weight(1f),
+        )
         Text(
             text = "${(candidate.probability * 100).roundToInt()}%",
-            color = if (selected) TextPrimary else TextMuted,
-            fontSize = 13.sp,
+            color = textColor,
+            style = typography.caption,
             textAlign = TextAlign.End,
             modifier = Modifier.width(44.dp),
-        )
-        // onClick = null: la fila completa es la que se selecciona.
-        RadioButton(
-            selected = selected,
-            onClick = null,
-            colors = RadioButtonDefaults.colors(selectedColor = Accent, unselectedColor = TextMuted),
-            modifier = Modifier.padding(start = 8.dp),
         )
     }
 }
 
 @Composable
-private fun MessageContent(@StringRes title: Int, @StringRes body: Int) {
+private fun UnknownContent(@StringRes title: Int, @StringRes body: Int) {
     InstrumentIcon(
         instrument = null,
         contentDescription = stringResource(R.string.unknown_instrument),
-        modifier = Modifier.size(88.dp),
+        modifier = Modifier.size(TunerTheme.sizes.iconLarge),
     )
-    Spacer(Modifier.height(16.dp))
-    Text(stringResource(title), fontSize = 22.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
-    Spacer(Modifier.height(8.dp))
-    Text(stringResource(body), color = TextMuted, fontSize = 14.sp, textAlign = TextAlign.Center)
+    Spacer(Modifier.height(TunerTheme.spacing.lg))
+    MessageBlock(title = stringResource(title), body = stringResource(body))
 }
 
 @Composable
@@ -415,11 +348,17 @@ private fun instrumentName(instrument: Instrument, otherLabel: String?): String 
         instrument.displayName
     }
 
-private enum class Confidence(@StringRes val label: Int, val color: Color) {
-    HIGH(R.string.confidence_high, InTune),
-    MEDIUM(R.string.confidence_medium, NearlyInTune),
-    LOW(R.string.confidence_low, OutOfTune),
+private enum class Confidence(@StringRes val label: Int) {
+    HIGH(R.string.confidence_high),
+    MEDIUM(R.string.confidence_medium),
+    LOW(R.string.confidence_low),
     ;
+
+    fun color(colors: TunerColors): Color = when (this) {
+        HIGH -> colors.inTune
+        MEDIUM -> colors.nearlyInTune
+        LOW -> colors.outOfTune
+    }
 
     companion object {
         fun of(probability: Float) = when {

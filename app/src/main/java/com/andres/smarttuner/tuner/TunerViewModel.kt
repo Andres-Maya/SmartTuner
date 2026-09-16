@@ -94,11 +94,8 @@ class TunerViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.update { it.copy(isListening = false, hasSignal = false) }
     }
 
-    fun toggleAccidentalStyle() {
-        _uiState.update {
-            val next = if (it.accidentalStyle == AccidentalStyle.SHARPS) AccidentalStyle.FLATS else AccidentalStyle.SHARPS
-            it.copy(accidentalStyle = next)
-        }
+    fun setAccidentalStyle(style: AccidentalStyle) {
+        _uiState.update { it.copy(accidentalStyle = style) }
     }
 
     fun changeReference(deltaHz: Float) {
