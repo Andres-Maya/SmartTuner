@@ -3,12 +3,14 @@ package com.andres.smarttuner.tuner
 import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Application
+import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.os.SystemClock
 import android.util.Log
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.andres.smarttuner.ai.AudioCapture
 import com.andres.smarttuner.ai.IdentificationOutcome
 import com.andres.smarttuner.ai.IdentificationSession
 import com.andres.smarttuner.ai.InstrumentHead
@@ -33,6 +35,12 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import org.json.JSONArray
+import org.json.JSONObject
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import kotlin.math.roundToInt
 
 class TunerViewModel(application: Application) : AndroidViewModel(application) {
@@ -166,6 +174,8 @@ class TunerViewModel(application: Application) : AndroidViewModel(application) {
             classify = { yamnet.classify(it, sampleRate) },
             head = head,
         )
+        // En desarrollo se guarda cada escucha para comparar la app con el entrenamiento en el PC.
+        val capture = if (isDebuggable) AudioCapture(sampleRate) else null
 
         // Termina por segundos de audio analizado; el tope evita quedarse colgado si el micrófono se detiene.
         withTimeoutOrNull(IDENTIFY_TIMEOUT_MS) {
@@ -173,6 +183,7 @@ class TunerViewModel(application: Application) : AndroidViewModel(application) {
                 val pitchMidi = frame.pitch
                     ?.takeIf { it.probability >= MIN_PROBABILITY }
                     ?.let { MusicTheory.frequencyToMidi(it.frequency) }
+                capture?.append(frame.samples)
                 session.accept(frame.samples, pitchMidi)
 
                 val progress = session.acceptedSeconds / IDENTIFY_SECONDS
@@ -186,6 +197,7 @@ class TunerViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
         val outcome = session.result()
+        capture?.let { saveCapture(it, session, outcome) }
         if (Log.isLoggable(TAG, Log.DEBUG)) {
             val learned = session.headSummary.entries
                 .sortedByDescending { it.value }
@@ -198,6 +210,52 @@ class TunerViewModel(application: Application) : AndroidViewModel(application) {
             Log.d(TAG, "${session.analyzedWindows} ventanas · capa: $learned · decisión: $decision")
         }
         return outcome
+    }
+
+    private val isDebuggable: Boolean
+        get() = (getApplication<Application>().applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
+
+    /**
+     * Guarda el audio y los números de una escucha en
+     * /sdcard/Android/data/com.andres.smarttuner/files/captures/ (ver ml/README.md).
+     */
+    private fun saveCapture(capture: AudioCapture, session: IdentificationSession, outcome: IdentificationOutcome) {
+        val directory = getApplication<Application>().getExternalFilesDir(CAPTURE_DIRECTORY) ?: return
+        val name = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
+        runCatching {
+            capture.writeWav(File(directory, "$name.wav"))
+            val decision = (outcome as? IdentificationOutcome.Identified)?.candidates?.let { candidates ->
+                JSONArray(candidates.map {
+                    JSONObject().put("instrument", it.instrument.datasetLabel).put("probability", it.probability.toDouble())
+                })
+            }
+            val windows = JSONArray(session.windowDiagnostics.map { window ->
+                JSONObject()
+                    .put("endSample", window.endSample)
+                    .put("rms", window.rms.toDouble())
+                    .put("resultCount", window.resultCount)
+                    .put("categoryCount", window.categoryCount)
+                    .put("scores", JSONArray(window.scores.map { it.toDouble() }))
+                    .put("head", JSONObject(window.head.mapValues { it.value.toDouble() }))
+            })
+            val report = JSONObject()
+                .put("sampleRate", capture.sampleRate)
+                .put("samples", capture.sampleCount)
+                .put("pitchesMidi", JSONArray(session.detectedPitches.map { it.toDouble() }))
+                .put("windows", windows)
+                .put("decision", decision ?: JSONObject.NULL)
+            File(directory, "$name.json").writeText(report.toString())
+            pruneCaptures(directory)
+            Log.i(TAG, "Captura guardada: ${File(directory, "$name.wav").absolutePath}")
+        }.onFailure { Log.w(TAG, "No se pudo guardar la captura", it) }
+    }
+
+    private fun pruneCaptures(directory: File) {
+        val captures = directory.listFiles { file -> file.extension == "wav" }?.sortedByDescending { it.name } ?: return
+        captures.drop(MAX_CAPTURES).forEach { wav ->
+            wav.delete()
+            File(directory, "${wav.nameWithoutExtension}.json").delete()
+        }
     }
 
     private fun onPitch(result: PitchResult?) {
@@ -245,5 +303,7 @@ class TunerViewModel(application: Application) : AndroidViewModel(application) {
         const val SIGNAL_HOLD_MS = 500L
         const val IDENTIFY_SECONDS = 4f
         const val IDENTIFY_TIMEOUT_MS = 12_000L
+        const val CAPTURE_DIRECTORY = "captures"
+        const val MAX_CAPTURES = 60
     }
 }

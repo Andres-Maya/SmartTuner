@@ -149,13 +149,45 @@ ml/.venv/Scripts/python.exe ml/scripts/simulate_app.py --files cello --verbose
 Compara dos cifras: **capa entrenada sola** y **app completa**. Si la app acierta menos que la capa,
 el problema está en la fusión, no en el modelo.
 
-## 8. Cómo la usa la app
+## 8. Grabar con la propia app (recomendado)
+
+La compilación de desarrollo guarda el audio de cada **Identificar instrumento** exactamente como
+lo capta el teléfono, junto con los números que calculó (`captures/*.wav` y `*.json`). Es el
+mejor material de entrenamiento, porque no hay diferencia entre lo que aprende el modelo y lo que
+oye la app.
+
+1. Toca **un solo instrumento** y pulsa *Identificar instrumento* varias veces
+   (cuerdas al aire, notas sueltas, fuerte y suave). Anota la hora de inicio y fin.
+2. Trae las capturas al PC:
+   ```bash
+   MSYS_NO_PATHCONV=1 adb pull /sdcard/Android/data/com.andres.smarttuner/files/captures ml/
+   ```
+3. Etiquétalas y cópialas al dataset (prueba antes con `--dry-run`):
+   ```bash
+   python ml/scripts/import_captures.py cello --since 20260916-1300 --until 20260916-1310
+   ```
+4. Repite con cada instrumento y con `background` (sin tocar nada), y reentrena.
+
+La app guarda las últimas 60 capturas. Para comprobar que la app y el entrenamiento calculan lo
+mismo con ese audio:
+
+```bash
+ml/.venv/Scripts/python.exe ml/scripts/compare_capture.py
+```
+
+La similitud "una ventana (A)" debe estar cerca de 1.0.
+
+## 9. Cómo la usa la app
 
 `InstrumentHead` aplica la capa entrenada a cada ventana y el resultado se mezcla así:
 
 - **YAMNet decide si hay un instrumento.** Sin evidencia de música, la app responde "no reconocí
   un instrumento" aunque la capa entrenada esté segura: su softmax siempre reparte el 100 %.
-- **La capa entrenada decide cuál**, con un peso de hasta 85 % proporcional a su confianza.
+- **Solo se usa la primera ventana de YAMNet de cada segundo.** MediaPipe devuelve además una
+  ventana casi vacía con los 25 ms sobrantes; promediarla dejaba las puntuaciones a la mitad y la
+  capa entrenada respondía "guitarra" casi siempre.
+- **La capa entrenada decide cuál**, con un peso fijo del 70 %. Si el peso bajara cuando la capa
+  duda, mandaría la parte genérica de YAMNet, que tiende a responder "guitarra".
 - **El registro solo veta lo imposible** sobre la capa entrenada (un violín no puede dar un Do3).
   La bonificación por cuerdas al aire se aplica únicamente a la parte genérica de YAMNet: las notas
   pisadas de un instrumento coinciden con las cuerdas al aire de otro (Re4 de chelo = Re de viola)
@@ -172,7 +204,7 @@ adb logcat | grep TunerViewModel
 
 Si borras `app/src/main/assets/instrument_head.json`, la app vuelve a funcionar solo con YAMNet.
 
-## 9. Git
+## 10. Git
 
 Los `.wav`, `ml/output/` y `ml/.venv/` están en `.gitignore`: el audio pesa mucho para un
 repositorio normal. Guárdalos en Google Drive, un disco externo o usa
