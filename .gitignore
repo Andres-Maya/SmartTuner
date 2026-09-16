@@ -21,3 +21,4 @@ ml/output/
 ml/.smoke_dataset/
 ml/.cache/
 ml/.venv/
+ml/scripts/__pycache__/
