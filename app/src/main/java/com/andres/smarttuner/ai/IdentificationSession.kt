@@ -7,10 +7,12 @@ import kotlin.math.sqrt
  * Acumula audio de una escucha: agrupa los bloques en ventanas de [windowSeconds]
  * con salto de [hopSeconds], clasifica cada ventana con sonido y guarda las alturas detectadas.
  * [classify] se inyecta para poder probar la sesión sin el modelo.
+ * [head] es la capa entrenada con grabaciones propias; si es `null` solo se usa YAMNet.
  */
 class IdentificationSession(
     private val sampleRate: Int,
-    private val classify: (FloatArray) -> Map<String, Float>,
+    private val classify: (FloatArray) -> YamnetScores,
+    private val head: InstrumentHead? = null,
     private val fusion: InstrumentFusion = InstrumentFusion(),
     windowSeconds: Float = 1f,
     hopSeconds: Float = 0.5f,
@@ -20,11 +22,11 @@ class IdentificationSession(
     private val hopSize = (sampleRate * hopSeconds).toInt()
     private var filled = 0
     private var samplesSinceLastWindow = 0
+    private var acceptedSamples = 0L
 
     private val windowScores = mutableListOf<Map<String, Float>>()
+    private val headScores = mutableListOf<Map<String, Float>>()
     private val pitchesMidi = mutableListOf<Float>()
-
-    private var acceptedSamples = 0L
 
     val analyzedWindows: Int get() = windowScores.size
 
@@ -47,11 +49,15 @@ class IdentificationSession(
 
         if (filled == window.size && samplesSinceLastWindow >= hopSize) {
             samplesSinceLastWindow = 0
-            if (rms(window) >= silenceRms) windowScores += classify(window.copyOf())
+            if (rms(window) >= silenceRms) {
+                val scores = classify(window.copyOf())
+                windowScores += scores.byLabel
+                head?.takeIf { scores.byIndex.isNotEmpty() }?.let { headScores += it.probabilities(scores.byIndex) }
+            }
         }
     }
 
-    fun result(): IdentificationOutcome = fusion.fuse(windowScores, pitchesMidi)
+    fun result(): IdentificationOutcome = fusion.fuse(windowScores, pitchesMidi, headScores)
 
     private fun rms(samples: FloatArray): Float {
         var energy = 0.0

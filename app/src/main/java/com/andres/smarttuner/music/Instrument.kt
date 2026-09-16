@@ -60,6 +60,9 @@ enum class Instrument(
 
     val isChromatic: Boolean get() = strings.isEmpty()
 
+    /** Nombre de la carpeta del dataset y de la clase del modelo entrenado (ver ml/README.md). */
+    val datasetLabel: String get() = name.lowercase()
+
     val family: InstrumentFamily?
         get() = when (this) {
             VIOLIN, VIOLA, CELLO -> InstrumentFamily.BOWED

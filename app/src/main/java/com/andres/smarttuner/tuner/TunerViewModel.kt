@@ -11,6 +11,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.andres.smarttuner.ai.IdentificationOutcome
 import com.andres.smarttuner.ai.IdentificationSession
+import com.andres.smarttuner.ai.InstrumentHead
 import com.andres.smarttuner.ai.YamnetClassifier
 import com.andres.smarttuner.audio.AudioFrame
 import com.andres.smarttuner.audio.MicrophoneAudioSource
@@ -55,6 +56,12 @@ class TunerViewModel(application: Application) : AndroidViewModel(application) {
 
     @Volatile
     private var classifier: YamnetClassifier? = null
+
+    // Capa entrenada con grabaciones propias (ml/README.md); null mientras no exista el asset.
+    @Volatile
+    private var head: InstrumentHead? = null
+    @Volatile
+    private var headLoaded = false
 
     // El permiso se comprueba explícitamente antes de abrir el micrófono.
     @SuppressLint("MissingPermission")
@@ -152,7 +159,16 @@ class TunerViewModel(application: Application) : AndroidViewModel(application) {
             it.classify(FloatArray(sampleRate), sampleRate)
             classifier = it
         }
-        val session = IdentificationSession(sampleRate, classify = { yamnet.classify(it, sampleRate) })
+        if (!headLoaded) {
+            head = InstrumentHead.loadFromAssets(getApplication())
+            headLoaded = true
+            Log.i(TAG, head?.let { "Modelo propio cargado: ${it.labels}" } ?: "Sin modelo propio: solo YAMNet")
+        }
+        val session = IdentificationSession(
+            sampleRate = sampleRate,
+            classify = { yamnet.classify(it, sampleRate) },
+            head = head,
+        )
 
         // Termina por segundos de audio analizado; el tope evita quedarse colgado si el micrófono se detiene.
         withTimeoutOrNull(IDENTIFY_TIMEOUT_MS) {
