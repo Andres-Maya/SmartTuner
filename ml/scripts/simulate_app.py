@@ -5,8 +5,11 @@ Porta a Python las tres piezas que la app combina: el detector de altura YIN, la
 (instrument_head.json) y la fusión con el registro musical. Sirve para depurar por qué la app
 se equivoca con un instrumento sin depender del teléfono.
 
-    ml/.venv/Scripts/python.exe ml/scripts/simulate_app.py
+    ml/.venv/Scripts/python.exe ml/scripts/simulate_app.py --cv --seconds 4
     ml/.venv/Scripts/python.exe ml/scripts/simulate_app.py --files cello bass --verbose
+
+Con --cv cada grabación se evalúa con la capa del pliegue que NO la vio (ver train.py):
+es la cifra honesta. Sin --cv se usa la capa final, que ya conoce todo el dataset.
 """
 from __future__ import annotations
 
@@ -238,6 +241,27 @@ def fuse(windows, pitches, head_windows, octave_tolerant: bool, register_power: 
     return {name: value / total for name, value in scores.items()}, head, scores
 
 
+def load_head(path: Path):
+    """Devuelve (etiquetas, archivos de prueba, función ventana → probabilidades) de un instrument_head.json."""
+    model = json.loads(path.read_text(encoding="utf-8"))
+    labels = model["labels"]
+    weights = np.asarray(model["weights"], dtype=np.float64)
+    bias = np.asarray(model["bias"], dtype=np.float64)
+    mean = np.asarray(model.get("mean", []), dtype=np.float64)
+    scale = np.asarray(model.get("scale", []), dtype=np.float64)
+    log_features = model.get("featureTransform") == "log"
+
+    def probabilities(scores: np.ndarray) -> dict[str, float]:
+        features = np.log(scores + 1e-6) if log_features else scores
+        if mean.size:
+            features = (features - mean) / np.where(scale > 0, scale, 1.0)
+        logits = weights @ features + bias
+        exponentials = np.exp(logits - logits.max())
+        return dict(zip(labels, exponentials / exponentials.sum()))
+
+    return labels, set(model.get("testFiles", [])), probabilities
+
+
 def yamnet_label_names(model_path: Path) -> list[str]:
     """Los nombres de las 521 clases vienen dentro del .tflite, como metadatos."""
     with zipfile.ZipFile(model_path) as archive:
@@ -251,14 +275,16 @@ def main() -> int:
     parser.add_argument("--head", type=Path, default=REPO / "ml" / "output" / "instrument_head.json")
     parser.add_argument("--model", type=Path, default=REPO / "app" / "src" / "main" / "assets" / "yamnet.tflite")
     parser.add_argument("--files", nargs="*", default=None, help="clases a simular (por defecto todas)")
-    parser.add_argument("--octave-tolerant", action="store_true", help="cuerdas al aire tolerantes a la octava")
+    parser.add_argument("--octave-tolerant", action=argparse.BooleanOptionalAction, default=True,
+                        help="cuerdas al aire tolerantes a la octava (como la app)")
     parser.add_argument("--register-power", type=float, default=1.0, help="exponente del peso por registro")
-    parser.add_argument("--head-register", choices=("full", "range", "none"), default="full",
+    parser.add_argument("--head-register", choices=("full", "range", "none"), default="range",
                         help="qué parte del registro multiplica a la capa entrenada")
     parser.add_argument("--head-weight", type=float, default=HEAD_WEIGHT)
-    parser.add_argument("--generic-other", choices=("keep", "half", "drop"), default="keep",
+    parser.add_argument("--generic-other", choices=("keep", "half", "drop"), default="drop",
                         help="qué hacer con el 'Otro' de YAMNet cuando la capa propia ya tiene esa clase")
-    parser.add_argument("--split", default="", help="filtra por conjunto: val, test o val,test")
+    parser.add_argument("--cv", action="store_true",
+                        help="evalúa cada archivo con la capa del pliegue que no lo vio (honesto)")
     parser.add_argument("--seconds", type=float, default=0.0,
                         help="analiza solo los primeros segundos, como hace la app (0 = todo)")
     parser.add_argument("--verbose", action="store_true")
@@ -266,27 +292,19 @@ def main() -> int:
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-    head_model = json.loads(args.head.read_text(encoding="utf-8"))
-    labels = head_model["labels"]
-    weights = np.asarray(head_model["weights"], dtype=np.float64)
-    bias = np.asarray(head_model["bias"], dtype=np.float64)
-    mean = np.asarray(head_model.get("mean", []), dtype=np.float64)
-    scale = np.asarray(head_model.get("scale", []), dtype=np.float64)
-    log_features = head_model.get("featureTransform") == "log"
+    if args.cv:
+        fold_paths = sorted((REPO / "ml" / "output" / "folds").glob("fold_*.json"))
+        if not fold_paths:
+            print("No hay pliegues: ejecuta primero ml/scripts/train.py")
+            return 1
+        heads = [load_head(path) for path in fold_paths]
+    else:
+        heads = [load_head(args.head)]
 
-    def head_probabilities(scores: np.ndarray) -> dict[str, float]:
-        features = np.log(scores + 1e-6) if log_features else scores
-        if mean.size:
-            safe = np.where(scale > 0, scale, 1.0)
-            features = (features - mean) / safe
-        logits = weights @ features + bias
-        exponentials = np.exp(logits - logits.max())
-        return dict(zip(labels, exponentials / exponentials.sum()))
-
-    wanted: set[str] | None = None
-    if args.split:
-        split = json.loads((REPO / "ml" / "output" / "split.json").read_text(encoding="utf-8"))
-        wanted = {name for part in args.split.split(",") for name in split[part.strip()]}
+    def head_for(key: str):
+        if not args.cv:
+            return heads[0][2]
+        return next((fn for _, test_files, fn in heads if key in test_files), None)
 
     yamnet = Yamnet(args.model)
     label_names = yamnet_label_names(args.model)
@@ -297,7 +315,8 @@ def main() -> int:
 
     for label in class_names:
         for path in sorted((args.dataset / label).glob("*.wav")):
-            if wanted is not None and f"{label}/{path.name}" not in wanted:
+            head_probabilities = head_for(f"{label}/{path.name}")
+            if head_probabilities is None:
                 continue
             raw, rate = load_audio(path)
             if args.seconds:
@@ -343,7 +362,9 @@ def main() -> int:
                 print(f"    alturas: {len(pitches)} · mediana MIDI {median:.1f} · clases {notes.most_common(3)}")
                 print(f"    app: {top}")
 
-    print(f"\nCapa entrenada sola: {head_correct}/{total} archivos")
+    mode = "validación cruzada (honesto)" if args.cv else "capa final (optimista: ya vio estos archivos)"
+    print(f"\nModo: {mode}")
+    print(f"Capa entrenada sola: {head_correct}/{total} archivos")
     print(f"App completa:        {correct}/{total} archivos")
     print("\nErrores de la app (real → predicho):")
     for (real, predicted), count in sorted(matrix.items()):
