@@ -12,12 +12,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -25,9 +21,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -40,15 +34,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.text.BasicText
-import androidx.compose.foundation.text.TextAutoSize
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -67,11 +53,6 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -85,19 +66,19 @@ import com.andres.smarttuner.tuner.TunerMode
 import com.andres.smarttuner.tuner.TunerUiState
 import com.andres.smarttuner.tuner.TunerViewModel
 import com.andres.smarttuner.tuner.TuningStatus
-import com.andres.smarttuner.ui.theme.Accent
-import com.andres.smarttuner.ui.theme.AccentViolet
-import com.andres.smarttuner.ui.theme.Night
-import com.andres.smarttuner.ui.theme.NightDeep
-import com.andres.smarttuner.ui.theme.NightSurface
-import com.andres.smarttuner.ui.theme.NightSurfaceHigh
+import com.andres.smarttuner.ui.components.GhostButton
+import com.andres.smarttuner.ui.components.MessageBlock
+import com.andres.smarttuner.ui.components.PrimaryButton
+import com.andres.smarttuner.ui.components.ScreenColumn
+import com.andres.smarttuner.ui.components.SegmentedToggle
+import com.andres.smarttuner.ui.components.StatRow
+import com.andres.smarttuner.ui.components.StatusPill
+import com.andres.smarttuner.ui.components.Stepper
 import com.andres.smarttuner.ui.theme.SmartTunerTheme
-import com.andres.smarttuner.ui.theme.TextMuted
-import com.andres.smarttuner.ui.theme.TextPrimary
+import com.andres.smarttuner.ui.theme.TunerTheme
 import java.util.Locale
 import kotlin.math.roundToInt
 
-internal val TunerBackground = Brush.verticalGradient(listOf(NightSurface, Night, NightDeep))
 internal const val EMPTY_HZ = "— Hz"
 internal const val EMPTY_CENTS = "— ¢"
 
@@ -142,7 +123,7 @@ fun TunerRoute(viewModel: TunerViewModel) {
     Box(
         Modifier
             .fillMaxSize()
-            .background(TunerBackground),
+            .background(TunerTheme.colors.screenBrush),
     ) {
         if (hasPermission) {
             AnimatedContent(
@@ -158,7 +139,7 @@ fun TunerRoute(viewModel: TunerViewModel) {
                 when (mode) {
                     TunerMode.Chromatic -> TunerScreen(
                         state = state,
-                        onToggleAccidentals = viewModel::toggleAccidentalStyle,
+                        onSelectAccidentalStyle = viewModel::setAccidentalStyle,
                         onChangeReference = viewModel::changeReference,
                         onIdentifyInstrument = viewModel::identifyInstrument,
                     )
@@ -195,13 +176,14 @@ fun TunerRoute(viewModel: TunerViewModel) {
 @Composable
 fun TunerScreen(
     state: TunerUiState,
-    onToggleAccidentals: () -> Unit,
+    onSelectAccidentalStyle: (AccidentalStyle) -> Unit,
     onChangeReference: (Float) -> Unit,
     onIdentifyInstrument: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val spacing = TunerTheme.spacing
     val color by animateColorAsState(
-        targetValue = tuningColor(state.cents, state.hasSignal),
+        targetValue = tuningColor(state.cents, state.hasSignal, TunerTheme.colors),
         animationSpec = tween(250),
         label = "tuningColor",
     )
@@ -213,15 +195,8 @@ fun TunerScreen(
     val hasNote = state.hasSignal && state.nearestMidi != null
     val idle = state.status == TuningStatus.IDLE
 
-    Column(
-        modifier
-            .fillMaxSize()
-            .background(TunerBackground)
-            .systemBarsPadding()
-            .padding(horizontal = 20.dp, vertical = 12.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        TopBar(state.accidentalStyle, onToggleAccidentals)
+    ScreenColumn(modifier) {
+        TopBar(state.accidentalStyle, onSelectAccidentalStyle)
         Spacer(Modifier.weight(1f))
         TunerDial(
             cents = animatedCents,
@@ -233,13 +208,13 @@ fun TunerScreen(
             upperNote = state.upperNeighbor,
             emptyLabel = stringResource(R.string.play_a_note),
         )
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(spacing.md))
         ReadingsRow(
             frequency = if (hasNote) formatHz(state.frequency) else EMPTY_HZ,
             cents = if (hasNote) formatCents(state.cents) else EMPTY_CENTS,
             target = if (state.nearestMidi != null) formatHz(state.targetFrequency) else EMPTY_HZ,
         )
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(spacing.md))
         StatusPill(
             text = chromaticStatusText(state),
             color = color,
@@ -248,7 +223,7 @@ fun TunerScreen(
         )
         Spacer(Modifier.weight(1f))
         NoteStrip(state, color, Modifier.fillMaxWidth().height(64.dp))
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(spacing.md))
         StaffCard(state, color)
         Spacer(Modifier.weight(1f))
         BottomBar(state, onIdentifyInstrument, onChangeReference)
@@ -265,46 +240,19 @@ private fun chromaticStatusText(state: TunerUiState): String = when {
 }
 
 @Composable
-private fun TopBar(style: AccidentalStyle, onToggle: () -> Unit) {
+private fun TopBar(style: AccidentalStyle, onSelect: (AccidentalStyle) -> Unit) {
+    val colors = TunerTheme.colors
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
-            Text(
-                text = stringResource(R.string.app_name),
-                color = TextPrimary,
-                fontSize = 22.sp,
-                fontWeight = FontWeight.Bold,
-            )
-            Text(stringResource(R.string.tuner_subtitle), color = TextMuted, fontSize = 13.sp)
+            Text(stringResource(R.string.app_name), color = colors.textPrimary, style = TunerTheme.typography.appTitle)
+            Text(stringResource(R.string.tuner_subtitle), color = colors.textMuted, style = TunerTheme.typography.caption)
         }
-        AccidentalToggle(style, onToggle)
-    }
-}
-
-@Composable
-private fun AccidentalToggle(style: AccidentalStyle, onToggle: () -> Unit) {
-    val description = stringResource(R.string.toggle_accidentals)
-    Row(
-        Modifier
-            .clip(CircleShape)
-            .background(NightSurfaceHigh)
-            .clickable(onClick = onToggle)
-            .semantics { contentDescription = description }
-            .padding(4.dp),
-    ) {
-        listOf(AccidentalStyle.SHARPS to "♯", AccidentalStyle.FLATS to "♭").forEach { (option, symbol) ->
-            val selected = option == style
-            val background by animateColorAsState(if (selected) Accent else Color.Transparent, label = "toggleBg")
-            val foreground by animateColorAsState(if (selected) NightDeep else TextMuted, label = "toggleFg")
-            Box(
-                Modifier
-                    .size(width = 44.dp, height = 34.dp)
-                    .clip(CircleShape)
-                    .background(background),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(symbol, color = foreground, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-            }
-        }
+        SegmentedToggle(
+            options = listOf(AccidentalStyle.SHARPS to "♯", AccidentalStyle.FLATS to "♭"),
+            selected = style,
+            onSelect = onSelect,
+            contentDescription = stringResource(R.string.toggle_accidentals),
+        )
     }
 }
 
@@ -359,6 +307,8 @@ private fun NoteDisplay(
     emptyLabel: String,
     modifier: Modifier = Modifier,
 ) {
+    val colors = TunerTheme.colors
+    val typography = TunerTheme.typography
     val contentAlpha by animateFloatAsState(if (hasSignal) 1f else 0.4f, tween(300), label = "noteAlpha")
     val glowAlpha by animateFloatAsState(if (inTune) 0.5f else 0f, tween(350), label = "glow")
 
@@ -390,35 +340,21 @@ private fun NoteDisplay(
     ) { current ->
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             if (current == null) {
-                Text("–", color = TextMuted, fontSize = 96.sp, lineHeight = 100.sp, fontWeight = FontWeight.Light)
-                Text(emptyLabel, color = TextMuted, fontSize = 15.sp)
+                Text("–", color = colors.textMuted, style = typography.notePlaceholder)
+                Text(emptyLabel, color = colors.textMuted, style = typography.body)
             } else {
                 Row {
-                    Text(
-                        text = current.letter.toString(),
-                        color = TextPrimary,
-                        fontSize = 104.sp,
-                        lineHeight = 104.sp,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    Column(Modifier.padding(top = 10.dp, start = 2.dp)) {
+                    Text(current.letter.toString(), color = colors.textPrimary, style = typography.noteLetter)
+                    Column(Modifier.padding(top = TunerTheme.spacing.md, start = TunerTheme.spacing.xxs)) {
                         Text(
                             text = current.accidentalSymbol.ifEmpty { " " },
-                            color = Accent,
-                            fontSize = 42.sp,
-                            lineHeight = 44.sp,
-                            fontWeight = FontWeight.Bold,
+                            color = colors.accent,
+                            style = typography.noteAccidental,
                         )
-                        Text(
-                            text = current.octave.toString(),
-                            color = TextMuted,
-                            fontSize = 32.sp,
-                            lineHeight = 34.sp,
-                            fontWeight = FontWeight.SemiBold,
-                        )
+                        Text(current.octave.toString(), color = colors.textMuted, style = typography.noteOctave)
                     }
                 }
-                Text(current.solfegeLabel, color = TextMuted, fontSize = 18.sp, fontWeight = FontWeight.Medium)
+                Text(current.solfegeLabel, color = colors.textMuted, style = typography.noteCaption)
             }
         }
     }
@@ -426,75 +362,28 @@ private fun NoteDisplay(
 
 @Composable
 private fun NeighborLabel(title: String, note: NoteName?, alignEnd: Boolean, modifier: Modifier = Modifier) {
+    val colors = TunerTheme.colors
     Column(
-        modifier.padding(bottom = 8.dp),
+        modifier.padding(bottom = TunerTheme.spacing.sm),
         horizontalAlignment = if (alignEnd) Alignment.End else Alignment.Start,
     ) {
-        Text(title, color = TextMuted, fontSize = 11.sp, letterSpacing = 1.sp, fontWeight = FontWeight.SemiBold)
+        Text(title, color = colors.textMuted, style = TunerTheme.typography.overline)
         Text(
             text = note?.label ?: "–",
-            color = TextPrimary.copy(alpha = 0.75f),
-            fontSize = 17.sp,
-            fontWeight = FontWeight.SemiBold,
+            color = colors.textPrimary.copy(alpha = 0.75f),
+            style = TunerTheme.typography.noteLabel,
         )
     }
 }
 
 @Composable
 internal fun ReadingsRow(frequency: String, cents: String, target: String) {
-    Row(Modifier.fillMaxWidth()) {
-        Reading(stringResource(R.string.label_frequency), frequency, Modifier.weight(1f))
-        Reading(stringResource(R.string.label_cents), cents, Modifier.weight(1f))
-        Reading(stringResource(R.string.label_target), target, Modifier.weight(1f))
-    }
-}
-
-@Composable
-private fun Reading(label: String, value: String, modifier: Modifier = Modifier) {
-    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(label, color = TextMuted, fontSize = 10.sp, letterSpacing = 1.sp, fontWeight = FontWeight.SemiBold)
-        Text(value, color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Medium)
-    }
-}
-
-@Composable
-internal fun StatusPill(text: String, color: Color, idle: Boolean, pulsing: Boolean) {
-    Surface(
-        shape = CircleShape,
-        color = color.copy(alpha = 0.14f),
-        border = BorderStroke(1.dp, color.copy(alpha = 0.45f)),
-    ) {
-        Row(
-            Modifier.padding(horizontal = 18.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            PulsingDot(color, pulsing)
-            Spacer(Modifier.width(10.dp))
-            Text(
-                text = text,
-                color = if (idle) TextMuted else color,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.SemiBold,
-            )
-        }
-    }
-}
-
-@Composable
-private fun PulsingDot(color: Color, pulsing: Boolean) {
-    val transition = rememberInfiniteTransition(label = "pulse")
-    val pulse by transition.animateFloat(
-        initialValue = 0.25f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(800), RepeatMode.Reverse),
-        label = "pulseAlpha",
-    )
-    Box(
-        Modifier
-            .size(8.dp)
-            .graphicsLayer { alpha = if (pulsing) pulse else 1f }
-            .clip(CircleShape)
-            .background(color),
+    StatRow(
+        listOf(
+            stringResource(R.string.label_frequency) to frequency,
+            stringResource(R.string.label_cents) to cents,
+            stringResource(R.string.label_target) to target,
+        ),
     )
 }
 
@@ -503,63 +392,22 @@ private fun BottomBar(state: TunerUiState, onIdentifyInstrument: () -> Unit, onC
     Row(
         Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        horizontalArrangement = Arrangement.spacedBy(TunerTheme.spacing.md),
     ) {
-        IdentifyButton(onIdentifyInstrument, Modifier.weight(1f))
-        Row(
-            Modifier
-                .clip(CircleShape)
-                .background(NightSurfaceHigh)
-                .padding(4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            RoundButton("−", stringResource(R.string.decrease_reference)) { onChangeReference(-1f) }
-            Text(
-                text = stringResource(R.string.reference_label, state.referenceA4.roundToInt()),
-                color = TextPrimary,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Medium,
-                modifier = Modifier.padding(horizontal = 8.dp),
-            )
-            RoundButton("+", stringResource(R.string.increase_reference)) { onChangeReference(1f) }
-        }
-    }
-}
-
-@Composable
-private fun IdentifyButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Row(
-        modifier
-            .height(44.dp)
-            .clip(CircleShape)
-            .background(Brush.horizontalGradient(listOf(Accent, AccentViolet)))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.Center,
-    ) {
-        Text("✦", color = NightDeep, fontSize = 15.sp)
-        Spacer(Modifier.width(6.dp))
-        BasicText(
+        PrimaryButton(
             text = stringResource(R.string.identify_instrument),
-            style = TextStyle(color = NightDeep, fontWeight = FontWeight.SemiBold),
-            maxLines = 1,
-            autoSize = TextAutoSize.StepBased(minFontSize = 10.sp, maxFontSize = 14.sp),
+            onClick = onIdentifyInstrument,
+            leading = "✦",
+            height = TunerTheme.sizes.touchTarget,
+            modifier = Modifier.weight(1f),
         )
-    }
-}
-
-@Composable
-private fun RoundButton(symbol: String, description: String, onClick: () -> Unit) {
-    Box(
-        Modifier
-            .size(36.dp)
-            .clip(CircleShape)
-            .clickable(onClick = onClick)
-            .semantics { contentDescription = description },
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(symbol, color = Accent, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+        Stepper(
+            label = stringResource(R.string.reference_label, state.referenceA4.roundToInt()),
+            onDecrement = { onChangeReference(-1f) },
+            onIncrement = { onChangeReference(1f) },
+            decrementDescription = stringResource(R.string.decrease_reference),
+            incrementDescription = stringResource(R.string.increase_reference),
+        )
     }
 }
 
@@ -569,54 +417,44 @@ private fun PermissionRequest(
     onRequest: () -> Unit,
     onOpenSettings: () -> Unit,
 ) {
+    val colors = TunerTheme.colors
+    val spacing = TunerTheme.spacing
     Column(
         Modifier
             .fillMaxSize()
             .systemBarsPadding()
-            .padding(32.dp),
+            .padding(spacing.xxxl),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(
             Modifier
                 .size(120.dp)
-                .clip(CircleShape)
-                .background(Brush.radialGradient(listOf(Accent.copy(alpha = 0.4f), Color.Transparent))),
+                .clip(TunerTheme.shapes.pill)
+                .background(Brush.radialGradient(listOf(colors.accent.copy(alpha = 0.4f), Color.Transparent))),
             contentAlignment = Alignment.Center,
         ) {
             Text("🎙️", fontSize = 52.sp)
         }
-        Spacer(Modifier.height(24.dp))
-        Text(
-            text = stringResource(R.string.permission_title),
-            color = TextPrimary,
-            fontSize = 24.sp,
-            fontWeight = FontWeight.Bold,
-            textAlign = TextAlign.Center,
+        Spacer(Modifier.height(spacing.xxl))
+        MessageBlock(
+            title = stringResource(R.string.permission_title),
+            body = stringResource(R.string.permission_body),
         )
-        Spacer(Modifier.height(12.dp))
-        Text(
-            text = stringResource(R.string.permission_body),
-            color = TextMuted,
-            fontSize = 15.sp,
-            textAlign = TextAlign.Center,
-        )
-        Spacer(Modifier.height(32.dp))
-        Button(
+        Spacer(Modifier.height(spacing.xxxl))
+        PrimaryButton(
+            text = stringResource(R.string.permission_grant),
             onClick = onRequest,
-            shape = CircleShape,
-            colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = NightDeep),
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(52.dp),
-        ) {
-            Text(stringResource(R.string.permission_grant), fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-        }
+            height = TunerTheme.sizes.buttonLarge,
+            modifier = Modifier.fillMaxWidth(),
+        )
         if (showSettingsShortcut) {
-            Spacer(Modifier.height(8.dp))
-            TextButton(onClick = onOpenSettings) {
-                Text(stringResource(R.string.permission_open_settings), color = Accent)
-            }
+            Spacer(Modifier.height(spacing.sm))
+            GhostButton(
+                text = stringResource(R.string.permission_open_settings),
+                onClick = onOpenSettings,
+                color = colors.accent,
+            )
         }
     }
 }
@@ -645,9 +483,19 @@ private fun TunerScreenPreview() {
                 nearestMidi = 58,
                 cents = 12f,
             ),
-            onToggleAccidentals = {},
+            onSelectAccidentalStyle = {},
             onChangeReference = {},
             onIdentifyInstrument = {},
         )
+    }
+}
+
+@Preview(showBackground = true, backgroundColor = 0xFF090D1C, widthDp = 360, heightDp = 780)
+@Composable
+private fun PermissionRequestPreview() {
+    SmartTunerTheme {
+        Box(Modifier.background(TunerTheme.colors.screenBrush)) {
+            PermissionRequest(showSettingsShortcut = true, onRequest = {}, onOpenSettings = {})
+        }
     }
 }
