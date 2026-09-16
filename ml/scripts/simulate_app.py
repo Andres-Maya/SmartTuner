@@ -47,7 +47,7 @@ MIN_PITCHED_FRAMES = 8
 PITCH_ERROR_RATE = 0.1
 FAMILY_SHARE = 0.1
 OPEN_STRING_TOLERANCE = 0.3
-HEAD_WEIGHT = 0.85
+HEAD_WEIGHT = 0.7
 
 OPEN_STRINGS = {
     "guitar": [64, 59, 55, 50, 45, 40],
@@ -181,7 +181,8 @@ def distribute(family: float, specific: dict[str, float], weight) -> dict[str, f
 
 
 def fuse(windows, pitches, head_windows, octave_tolerant: bool, register_power: float,
-         head_register: str = "full", head_weight: float = HEAD_WEIGHT, generic_other: str = "keep"):
+         head_register: str = "full", head_weight: float = HEAD_WEIGHT, generic_other: str = "keep",
+         head_confidence: str = "scaled"):
     head = {}
     if head_windows:
         keys = head_windows[0].keys()
@@ -228,7 +229,7 @@ def fuse(windows, pitches, head_windows, octave_tolerant: bool, register_power: 
         learned = {name: head.get(name, 0.0) * head_weight_of(name) for name in scores}
         learned_total = sum(learned.values())
         if learned_total > 0:
-            blend_weight = head_weight * min(1.0, max(head.values()))
+            blend_weight = head_weight * (min(1.0, max(head.values())) if head_confidence == "scaled" else 1.0)
             generic_total = sum(scores.values())
             scores = {
                 name: blend_weight * learned[name] / learned_total
@@ -281,6 +282,8 @@ def main() -> int:
     parser.add_argument("--head-register", choices=("full", "range", "none"), default="range",
                         help="qué parte del registro multiplica a la capa entrenada")
     parser.add_argument("--head-weight", type=float, default=HEAD_WEIGHT)
+    parser.add_argument("--head-confidence", choices=("scaled", "fixed"), default="fixed",
+                        help="scaled: el peso de la capa crece con su confianza; fixed: siempre el mismo")
     parser.add_argument("--generic-other", choices=("keep", "half", "drop"), default="drop",
                         help="qué hacer con el 'Otro' de YAMNet cuando la capa propia ya tiene esa clase")
     parser.add_argument("--cv", action="store_true",
@@ -342,7 +345,7 @@ def main() -> int:
 
             probabilities, head_mean, _ = fuse(
                 named_windows, pitches, window_heads, args.octave_tolerant, args.register_power,
-                args.head_register, args.head_weight, args.generic_other,
+                args.head_register, args.head_weight, args.generic_other, args.head_confidence,
             )
             head_best = max(head_mean, key=head_mean.get) if head_mean else "?"
             best = max(probabilities, key=probabilities.get) if probabilities else "background"

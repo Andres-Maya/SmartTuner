@@ -55,8 +55,10 @@ sealed interface IdentificationOutcome {
  * lo que permite reconocer la viola aunque YAMNet no tenga esa clase.
  *
  * Si además existe una capa entrenada con grabaciones propias ([InstrumentHead]), su resultado
- * pesa hasta [HEAD_WEIGHT] **en proporción a su confianza**: si duda entre varias clases manda
- * lo anterior, que además cubre las clases con las que esa capa no se entrenó.
+ * pesa [HEAD_WEIGHT] y lo anterior el resto, que además cubre las clases con las que esa capa no
+ * se entrenó. El peso es fijo: escalarlo por la confianza de la capa dejaba que, al dudar, mandara
+ * la parte genérica de YAMNet, que conoce bien "Guitar" y casi nada de bajo, chelo o viola.
+ * Medido con validación cruzada (ml/scripts/simulate_app.py): fijo 0.6–0.7 → 55/62, escalado → 53/62.
  */
 class InstrumentFusion(
     private val minEvidence: Float = 0.05f,
@@ -179,13 +181,11 @@ class InstrumentFusion(
         val learnedTotal = learned.values.sum()
         if (learnedTotal <= 0f) return fusionScores
 
-        // Una capa dubitativa (probabilidad máxima baja) casi no mueve el resultado.
-        val weight = HEAD_WEIGHT * (head.values.max().coerceIn(0f, 1f))
         val genericTotal = fusionScores.values.sum()
         return fusionScores.keys.associateWith { instrument ->
             val fromHead = learned.getValue(instrument) / learnedTotal
             val fromYamnet = if (genericTotal > 0f) fusionScores.getValue(instrument) / genericTotal else 0f
-            weight * fromHead + (1f - weight) * fromYamnet
+            HEAD_WEIGHT * fromHead + (1f - HEAD_WEIGHT) * fromYamnet
         }
     }
 
@@ -213,7 +213,7 @@ class InstrumentFusion(
 
     private companion object {
         const val OPEN_STRING_TOLERANCE = 0.3f // 30 cents
-        const val HEAD_WEIGHT = 0.85f
+        const val HEAD_WEIGHT = 0.7f
         const val MUSIC_THRESHOLD = 0.15f
     }
 }

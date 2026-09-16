@@ -27,6 +27,7 @@ class IdentificationSession(
     private val windowScores = mutableListOf<Map<String, Float>>()
     private val headScores = mutableListOf<Map<String, Float>>()
     private val pitchesMidi = mutableListOf<Float>()
+    private val diagnostics = mutableListOf<WindowDiagnostic>()
 
     val analyzedWindows: Int get() = windowScores.size
 
@@ -56,15 +57,30 @@ class IdentificationSession(
 
         if (filled == window.size && samplesSinceLastWindow >= hopSize) {
             samplesSinceLastWindow = 0
-            if (rms(window) >= silenceRms) {
+            val level = rms(window)
+            if (level >= silenceRms) {
                 val scores = classify(window.copyOf())
                 windowScores += scores.byLabel
-                head?.takeIf { scores.byIndex.isNotEmpty() }?.let { headScores += it.probabilities(scores.byIndex) }
+                val learned = head?.takeIf { scores.byIndex.isNotEmpty() }?.probabilities(scores.byIndex)
+                learned?.let { headScores += it }
+                diagnostics += WindowDiagnostic(
+                    endSample = acceptedSamples,
+                    rms = level,
+                    resultCount = scores.resultCount,
+                    categoryCount = scores.categoryCount,
+                    scores = scores.byIndex,
+                    head = learned.orEmpty(),
+                )
             }
         }
     }
 
     fun result(): IdentificationOutcome = fusion.fuse(windowScores, pitchesMidi, headScores)
+
+    /** Lo que se usó para decidir, ventana por ventana; lo guarda la captura de diagnóstico. */
+    val windowDiagnostics: List<WindowDiagnostic> get() = diagnostics.toList()
+
+    val detectedPitches: List<Float> get() = pitchesMidi.toList()
 
     private fun rms(samples: FloatArray): Float {
         var energy = 0.0
@@ -72,3 +88,14 @@ class IdentificationSession(
         return sqrt(energy / samples.size).toFloat()
     }
 }
+
+/** Datos de una ventana analizada, para comparar la app con el entrenamiento en el PC. */
+class WindowDiagnostic(
+    /** Muestra (desde el inicio de la escucha) donde termina la ventana. */
+    val endSample: Long,
+    val rms: Float,
+    val resultCount: Int,
+    val categoryCount: Int,
+    val scores: FloatArray,
+    val head: Map<String, Float>,
+)
