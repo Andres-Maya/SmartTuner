@@ -41,6 +41,40 @@ class HeadFusionTest {
     }
 
     @Test
+    fun uncertainHead_doesNotOverrideYamnet() {
+        // La capa entrenada duda entre todas las clases: debe mandar la evidencia de YAMNet.
+        val outcome = fusion.fuse(
+            windows = yamnetWindows("Ukulele" to 0.6f, "Plucked string instrument" to 0.5f),
+            pitchesMidi = List(12) { 64f },
+            headWindows = headWindows("guitar" to 0.26f, "cello" to 0.25f, "violin" to 0.25f, "ukulele" to 0.24f),
+        )
+        assertEquals(Instrument.UKULELE, bestOf(outcome))
+    }
+
+    @Test
+    fun noise_isRejected_evenIfHeadIsConfident() {
+        // Caso real: eructos y ruido de sala; YAMNet no oye música pero la capa entrenada
+        // repartía el 71 % al ukelele porque su softmax siempre suma 1.
+        val outcome = fusion.fuse(
+            windows = List(4) { mapOf("Silence" to 0.15f, "Grunt" to 0.21f, "Burping, eructation" to 0.29f) },
+            pitchesMidi = emptyList(),
+            headWindows = headWindows("ukulele" to 0.71f, "other" to 0.18f, "bass" to 0.09f, "background" to 0.02f),
+        )
+        assertEquals(IdentificationOutcome.NoInstrument, outcome)
+    }
+
+    @Test
+    fun musicWithoutClearInstrument_isStillIdentified() {
+        // Guitarra real vista por YAMNet: Music alto pero puntuaciones de instrumento bajas.
+        val outcome = fusion.fuse(
+            windows = List(4) { mapOf("Music" to 0.5f, "Musical instrument" to 0.08f, "Guitar" to 0.04f) },
+            pitchesMidi = List(12) { 45f },
+            headWindows = headWindows("guitar" to 0.8f, "ukulele" to 0.1f, "background" to 0.05f),
+        )
+        assertEquals(Instrument.GUITAR, bestOf(outcome))
+    }
+
+    @Test
     fun backgroundClass_rejectsNonInstrumentAudio() {
         val outcome = fusion.fuse(
             windows = yamnetWindows("Speech" to 0.7f),
