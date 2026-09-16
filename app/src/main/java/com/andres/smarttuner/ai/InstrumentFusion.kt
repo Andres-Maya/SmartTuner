@@ -51,6 +51,9 @@ sealed interface IdentificationOutcome {
  *
  * La evidencia de familia se reparte entre sus instrumentos según timbre × registro,
  * lo que permite reconocer la viola aunque YAMNet no tenga esa clase.
+ *
+ * Si además existe una capa entrenada con grabaciones propias ([InstrumentHead]), su resultado
+ * pesa [HEAD_WEIGHT] y lo anterior queda como respaldo para las clases que esa capa no conoce.
  */
 class InstrumentFusion(
     private val minEvidence: Float = 0.05f,
@@ -59,8 +62,18 @@ class InstrumentFusion(
     private val familyShare: Float = 0.1f,
 ) {
 
-    fun fuse(windows: List<Map<String, Float>>, pitchesMidi: List<Float>): IdentificationOutcome {
+    fun fuse(
+        windows: List<Map<String, Float>>,
+        pitchesMidi: List<Float>,
+        headWindows: List<Map<String, Float>> = emptyList(),
+    ): IdentificationOutcome {
         if (windows.isEmpty()) return IdentificationOutcome.NoInstrument
+
+        val head = headWindows.meanByLabel()
+        val headKnowsBackground = head.containsKey(InstrumentHead.BACKGROUND_LABEL)
+        if (headKnowsBackground && head.getValue(InstrumentHead.BACKGROUND_LABEL) >= BACKGROUND_THRESHOLD) {
+            return IdentificationOutcome.NoInstrument
+        }
 
         val guitar = windows.meanOfMax(YamnetLabels.GUITAR)
         val bass = windows.meanOfMax(YamnetLabels.BASS)
@@ -105,10 +118,14 @@ class InstrumentFusion(
             put(Instrument.OTHER, other)
         }
 
-        if (scores.values.max() < minEvidence) return IdentificationOutcome.NoInstrument
+        // La capa propia solo puede descartar "no hay instrumento" si se entrenó con la clase
+        // background; si no, sigue mandando la evidencia mínima de YAMNet.
+        if (!headKnowsBackground && scores.values.max() < minEvidence) return IdentificationOutcome.NoInstrument
 
-        val total = scores.values.sum()
-        val candidates = scores
+        val blended = blend(scores, head, registerWeight)
+        val total = blended.values.sum()
+        if (total <= 0f) return IdentificationOutcome.NoInstrument
+        val candidates = blended
             .map { (instrument, score) -> InstrumentCandidate(instrument, score / total) }
             .sortedByDescending { it.probability }
         return IdentificationOutcome.Identified(
@@ -133,6 +150,32 @@ class InstrumentFusion(
         return 1f + nearOpenString
     }
 
+    /** Mezcla la capa entrenada (timbre aprendido) con la evidencia genérica de YAMNet + registro. */
+    private fun blend(
+        fusionScores: Map<Instrument, Float>,
+        head: Map<String, Float>,
+        registerWeight: (Instrument) -> Float,
+    ): Map<Instrument, Float> {
+        if (head.isEmpty()) return fusionScores
+        val learned = fusionScores.keys.associateWith { (head[it.datasetLabel] ?: 0f) * registerWeight(it) }
+        val learnedTotal = learned.values.sum()
+        if (learnedTotal <= 0f) return fusionScores
+
+        val genericTotal = fusionScores.values.sum()
+        return fusionScores.keys.associateWith { instrument ->
+            val fromHead = learned.getValue(instrument) / learnedTotal
+            val fromYamnet = if (genericTotal > 0f) fusionScores.getValue(instrument) / genericTotal else 0f
+            HEAD_WEIGHT * fromHead + (1f - HEAD_WEIGHT) * fromYamnet
+        }
+    }
+
+    private fun List<Map<String, Float>>.meanByLabel(): Map<String, Float> {
+        if (isEmpty()) return emptyMap()
+        val totals = HashMap<String, Float>()
+        forEach { window -> window.forEach { (label, value) -> totals[label] = (totals[label] ?: 0f) + value } }
+        return totals.mapValues { it.value / size }
+    }
+
     private fun distribute(
         familyScore: Float,
         specific: Map<Instrument, Float>,
@@ -150,5 +193,7 @@ class InstrumentFusion(
 
     private companion object {
         const val OPEN_STRING_TOLERANCE = 0.3f // 30 cents
+        const val HEAD_WEIGHT = 0.75f
+        const val BACKGROUND_THRESHOLD = 0.6f
     }
 }
