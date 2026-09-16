@@ -1,0 +1,144 @@
+# Dataset y entrenamiento de la IA de SmartTuner
+
+Aquí se guardan las grabaciones `.wav` para entrenar la IA que identifica instrumentos.
+El modelo base (YAMNet) ya sabe escuchar; con tus grabaciones aprende a distinguir
+**tus** instrumentos, grabados con **tu** micrófono.
+
+Cómo funciona el entrenamiento: se pasa cada ventana de audio por el mismo `yamnet.tflite`
+que la app lleva en `assets`, se toman sus **521 puntuaciones** como características y encima
+se entrena una regresión logística multinomial (una capa lineal + softmax). El resultado es un
+archivo de ~30 kB que la app aplica sin dependencias nuevas, y las características de
+entrenamiento son idénticas a las que el teléfono calcula en tiempo real.
+
+## 1. Estructura
+
+```
+ml/
+├── dataset/
+│   ├── guitar/       Guitarra (acústica, clásica o eléctrica)
+│   ├── bass/         Bajo (eléctrico o contrabajo)
+│   ├── violin/       Violín
+│   ├── viola/        Viola
+│   ├── cello/        Violonchelo
+│   ├── ukulele/      Ukelele
+│   ├── other/        Otros instrumentos: piano, voz cantada, flauta, batería…
+│   └── background/   Sin instrumento: silencio, ruido de sala, gente hablando, clics
+├── scripts/
+│   ├── check_dataset.py       Revisa el dataset (funciona con tu Python normal)
+│   ├── train.py               Entrena y exporta el modelo
+│   └── make_smoke_dataset.py  Audio sintético para probar el flujo (no sirve para la IA real)
+└── output/                    Resultados del último entrenamiento
+```
+
+Copia cada archivo en la carpeta de su instrumento. Los nombres de carpeta deben quedar exactamente así.
+
+> `other` y `background` son importantes: sin ellas la IA siempre elegiría uno de los seis instrumentos,
+> aunque estés hablando o tocando un piano. Sin `background`, la app sigue usando YAMNet para decidir
+> si de verdad hay un instrumento sonando.
+
+## 2. Cómo grabar
+
+| Aspecto | Recomendación |
+|---|---|
+| Formato | `.wav` PCM de 16/24 bits o float, mono o estéreo |
+| Frecuencia de muestreo | 44.1 kHz o 48 kHz (mínimo 16 kHz) |
+| Duración | Clips de **2 a 30 segundos** (mínimo 1 s) |
+| Cantidad mínima | **3 archivos por clase** (el entrenamiento necesita separar prueba y validación) |
+| Cantidad recomendada | 30 clips y 5+ minutos por clase |
+| Balance | Cantidad de audio parecida entre clases (máximo 3× de diferencia) |
+| Micrófono | **El del teléfono**, a la distancia a la que se usa la app. Es el factor que más importa |
+
+Qué tocar en cada clip, variando entre grabaciones:
+
+- **Cuerdas al aire**, una por una (es lo que se hace al afinar).
+- Notas sueltas en distintas partes del mástil, escalas y acordes.
+- En violín, viola y violonchelo: **con arco y en pizzicato**, en las cuerdas graves y agudas.
+  La cuerda **Do** de la viola y del violonchelo es lo que más ayuda a separarlas del violín.
+- Fuerte y suave, cerca del teléfono y a ~1 m.
+- Si puedes: distintos instrumentos, intérpretes, salas y teléfonos.
+
+## 3. Nombres de archivo y sesiones
+
+```
+<sesión>__<descripción>.wav
+```
+
+Todo lo que va **antes de `__`** identifica la sesión de grabación (mismo día, sala e instrumento):
+
+```
+cello/
+├── andres-casa-2026-09-14__cuerda-do.wav
+├── andres-casa-2026-09-14__cuerda-sol.wav
+└── conservatorio-sala2__escala-re.wav
+```
+
+El entrenamiento **nunca reparte una misma sesión** entre entrenamiento y prueba. Si lo hiciera,
+la IA "reconocería la sala" y los resultados saldrían inflados. Si un archivo no lleva `__`,
+cuenta como su propia sesión.
+
+## 4. Revisar el dataset
+
+Desde la raíz del proyecto, con tu Python normal:
+
+```bash
+python ml/scripts/check_dataset.py
+```
+
+Muestra archivos, minutos y sesiones por clase, y avisa de problemas: formato no soportado,
+clips muy cortos, silencio, saturación, duplicados, clases desbalanceadas o con pocas sesiones.
+
+## 5. Preparar el entorno de entrenamiento (una sola vez)
+
+TensorFlow no soporta Python 3.14, así que se usa un entorno aparte con Python 3.12.
+[uv](https://docs.astral.sh/uv/) lo descarga sin permisos de administrador:
+
+```bash
+pip install --user uv
+uv venv ml/.venv --python 3.12
+uv pip install --python ml/.venv/Scripts/python.exe tensorflow==2.20.0 scipy scikit-learn
+```
+
+## 6. Entrenar
+
+```bash
+ml/.venv/Scripts/python.exe ml/scripts/train.py
+```
+
+El script extrae las características, prueba varias configuraciones, elige la mejor con el
+conjunto de validación, mide con el de prueba y deja en `ml/output/`:
+
+| Archivo | Contenido |
+|---|---|
+| `instrument_head.json` | La capa entrenada; se copia sola a `app/src/main/assets/` |
+| `metrics.json` | Precisión por ventana y por archivo, más la matriz de confusión |
+| `split.json` | Qué archivos fueron a entrenamiento, validación y prueba |
+
+Después hay que **recompilar la app** para que incluya el modelo nuevo. En el arranque de la
+identificación, el log muestra `Modelo propio cargado: [...]` con las clases entrenadas.
+
+Opciones útiles:
+
+```bash
+# entrenar sin copiar el resultado a la app
+ml/.venv/Scripts/python.exe ml/scripts/train.py --no-install
+
+# probar el flujo completo con audio sintético
+python ml/scripts/make_smoke_dataset.py
+ml/.venv/Scripts/python.exe ml/scripts/train.py --dataset ml/.smoke_dataset --no-install
+```
+
+## 7. Cómo la usa la app
+
+`InstrumentHead` aplica la capa entrenada a cada ventana y el resultado se mezcla con lo que
+ya hacía la app: pesa **75%** la capa entrenada y **25%** la evidencia de YAMNet más el registro
+de notas. Así las clases que no entrenaste (por ejemplo la viola) siguen siendo posibles, y el
+registro sigue descartando instrumentos que no pueden tocar la nota que se oye.
+
+Si borras `app/src/main/assets/instrument_head.json`, la app vuelve a funcionar solo con YAMNet.
+
+## 8. Git
+
+Los `.wav`, `ml/output/` y `ml/.venv/` están en `.gitignore`: el audio pesa mucho para un
+repositorio normal. Guárdalos en Google Drive, un disco externo o usa
+[Git LFS](https://git-lfs.com) si quieres versionarlos. El modelo entrenado
+(`app/src/main/assets/instrument_head.json`) sí se versiona: son 30 kB.
