@@ -6,28 +6,30 @@ entrenamiento son idénticas a las que el teléfono calcula en tiempo real. Enci
 regresión logística multinomial (normalización + capa lineal + softmax) que la app aplica
 sin dependencias nuevas.
 
+La precisión se mide con **validación cruzada por sesiones**: cada grabación se evalúa una vez
+con un modelo que no la vio. El modelo que se instala se entrena después con TODO el audio.
+
     ml/.venv/Scripts/python.exe ml/scripts/train.py
     ml/.venv/Scripts/python.exe ml/scripts/train.py --dataset ml/.smoke_dataset --no-install
 
 Salida en ml/output/:
-    instrument_head.json  capa entrenada (se copia a app/src/main/assets/ salvo --no-install)
-    metrics.json          precisión, precisión por clase y matriz de confusión
-    split.json            qué archivos fueron a entrenamiento, validación y prueba
+    instrument_head.json  capa final (se copia a app/src/main/assets/ salvo --no-install)
+    metrics.json          precisión de la validación cruzada, por clase y matriz de confusión
+    folds/fold_N.json     capa de cada pliegue con sus archivos de prueba (para simulate_app.py --cv)
 """
 from __future__ import annotations
 
 import argparse
 import json
-import random
 import shutil
 import sys
-from collections import defaultdict
 from pathlib import Path
 
 import numpy as np
 import tensorflow as tf
 from scipy.signal import resample_poly
 from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import StratifiedGroupKFold
 from sklearn.preprocessing import StandardScaler
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -37,7 +39,9 @@ REPO = Path(__file__).resolve().parents[2]
 YAMNET_RATE = 16_000
 HOP_SECONDS = 0.48
 SILENCE_RMS = 0.006
-C_GRID = (0.01, 0.03, 0.1, 0.3, 1.0, 3.0)
+MAX_FOLDS = 5
+C_GRID = (0.03, 0.1, 0.3, 1.0, 3.0)
+TRANSFORMS = ("raw", "log")
 
 # El micrófono del teléfono capta a distintos volúmenes y con ruido de fondo: entrenar con
 # copias atenuadas y con ruido evita que el modelo aprenda el volumen en vez del timbre.
@@ -95,58 +99,36 @@ class Yamnet:
         return self.interpreter.get_tensor(self.output_detail["index"]).reshape(-1).astype(np.float32)
 
 
-def split_files(dataset: Path, labels: list[str], seed: int) -> dict[str, str]:
-    """Reparte por sesión (nunca por ventana) para que no se filtre la misma grabación."""
-    rng = random.Random(seed)
-    assignment: dict[str, str] = {}
-    for label in labels:
-        sessions: dict[str, list[Path]] = defaultdict(list)
-        for path in sorted((dataset / label).glob("*.wav")):
-            sessions[session_of(path)].append(path)
-        keys = list(sessions)
-        rng.shuffle(keys)
-        if len(keys) < 3:
-            raise SystemExit(
-                f"La clase '{label}' solo tiene {len(keys)} sesión(es); se necesitan al menos 3 "
-                "para separar entrenamiento, validación y prueba."
-            )
-        for index, key in enumerate(keys):
-            part = "test" if index == 0 else "val" if index == 1 else "train"
-            for path in sessions[key]:
-                assignment[f"{label}/{path.name}"] = part
-    return assignment
-
-
-def extract_features(dataset: Path, yamnet: Yamnet, labels: list[str], assignment: dict[str, str]) -> dict:
-    features, targets, parts, files = [], [], [], []
+def extract_features(dataset: Path, yamnet: Yamnet, labels: list[str], augmentations) -> dict:
+    """Una fila por ventana y por aumento. `original` marca las filas sin aumentar (las que se evalúan)."""
+    features, targets, files, sessions, original = [], [], [], [], []
     hop = int(HOP_SECONDS * YAMNET_RATE)
     for label_index, label in enumerate(labels):
         for path in sorted((dataset / label).glob("*.wav")):
             key = f"{label}/{path.name}"
-            part = assignment[key]
             samples = to_yamnet_rate(*load_audio(path))
-            # Solo el conjunto de entrenamiento se aumenta; prueba y validación quedan limpios.
-            variants = AUGMENTATIONS if part == "train" else AUGMENTATIONS[:1]
             windows = 0
             for start in range(0, max(1, len(samples) - yamnet.window + 1), hop):
                 window = samples[start : start + yamnet.window]
                 if float(np.sqrt(np.mean(window**2))) < SILENCE_RMS:
                     continue
-                for _, gain, noise in variants:
+                for name, gain, noise in augmentations:
                     augmented = window * gain
                     if noise:
                         augmented = augmented + np.random.default_rng(start).normal(0, noise, len(window))
                     features.append(yamnet.scores(augmented.astype(np.float32)))
                     targets.append(label_index)
-                    parts.append(part)
                     files.append(key)
+                    sessions.append(f"{label}/{session_of(path)}")
+                    original.append(name == "original")
                 windows += 1
-            print(f"  {label}/{path.name}: {windows} ventanas ({len(samples) / YAMNET_RATE:.1f} s) → {part}")
+            print(f"  {key}: {windows} ventanas ({len(samples) / YAMNET_RATE:.1f} s)")
     return {
         "features": np.asarray(features, dtype=np.float32),
         "targets": np.asarray(targets, dtype=np.int32),
-        "parts": np.asarray(parts),
         "files": np.asarray(files),
+        "sessions": np.asarray(sessions),
+        "original": np.asarray(original, dtype=bool),
     }
 
 
@@ -154,17 +136,56 @@ def transform(features: np.ndarray, kind: str) -> np.ndarray:
     return np.log(features + 1e-6) if kind == "log" else features
 
 
-def accuracies(model, scaler, features, targets, files) -> tuple[float, float]:
-    """Precisión por ventana y por archivo (promediando probabilidades, como hace la app)."""
-    scaled = scaler.transform(features)
-    window_accuracy = float(np.mean(model.predict(scaled) == targets))
-    probabilities = model.predict_proba(scaled)
-    correct = 0
-    unique = np.unique(files)
-    for name in unique:
-        mask = files == name
-        correct += int(np.argmax(probabilities[mask].mean(axis=0))) == int(targets[mask][0])
-    return window_accuracy, (correct / len(unique) if len(unique) else 0.0)
+def fit(features: np.ndarray, targets: np.ndarray, kind: str, c: float):
+    transformed = transform(features, kind)
+    scaler = StandardScaler().fit(transformed)
+    model = LogisticRegression(C=c, max_iter=4000, class_weight="balanced")
+    model.fit(scaler.transform(transformed), targets)
+    return scaler, model
+
+
+def predict_proba(scaler, model, features: np.ndarray, kind: str) -> np.ndarray:
+    return model.predict_proba(scaler.transform(transform(features, kind)))
+
+
+def cross_validate(data: dict, folds: list, kind: str, c: float) -> dict:
+    """Predicciones fuera de pliegue: cada ventana original la predice un modelo que no vio su sesión."""
+    features, targets, original = data["features"], data["targets"], data["original"]
+    window_predictions = np.full(len(targets), -1)
+    file_predictions: dict[str, int] = {}
+    for train_index, test_index in folds:
+        scaler, model = fit(features[train_index], targets[train_index], kind, c)
+        evaluated = test_index[original[test_index]]
+        probabilities = predict_proba(scaler, model, features[evaluated], kind)
+        window_predictions[evaluated] = probabilities.argmax(axis=1)
+        for name in np.unique(data["files"][evaluated]):
+            mask = data["files"][evaluated] == name
+            file_predictions[name] = int(probabilities[mask].mean(axis=0).argmax())
+
+    evaluated_all = original & (window_predictions >= 0)
+    window_accuracy = float(np.mean(window_predictions[evaluated_all] == targets[evaluated_all]))
+    file_targets = {name: int(targets[data["files"] == name][0]) for name in file_predictions}
+    file_accuracy = float(np.mean([file_predictions[n] == file_targets[n] for n in file_predictions]))
+    return {
+        "window_accuracy": window_accuracy,
+        "file_accuracy": file_accuracy,
+        "window_predictions": window_predictions,
+        "file_predictions": file_predictions,
+        "file_targets": file_targets,
+    }
+
+
+def head_json(scaler, model, labels: list[str], kind: str, **extra) -> dict:
+    return {
+        "version": 2,
+        "labels": labels,
+        "featureTransform": kind,
+        "mean": scaler.mean_.astype(np.float32).tolist(),
+        "scale": scaler.scale_.astype(np.float32).tolist(),
+        "weights": [row.tolist() for row in model.coef_.astype(np.float32)],
+        "bias": model.intercept_.astype(np.float32).tolist(),
+        **extra,
+    }
 
 
 def main() -> int:
@@ -179,9 +200,7 @@ def main() -> int:
     args = parser.parse_args()
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    if args.no_augment:
-        global AUGMENTATIONS
-        AUGMENTATIONS = AUGMENTATIONS[:1]
+    augmentations = AUGMENTATIONS[:1] if args.no_augment else AUGMENTATIONS
 
     labels = [name for name in CLASSES if any((args.dataset / name).glob("*.wav"))]
     if len(labels) < 2:
@@ -190,98 +209,101 @@ def main() -> int:
     print(f"Clases con datos: {', '.join(labels)}\n")
 
     yamnet = Yamnet(args.model)
-    print(f"YAMNet: ventana de {yamnet.window} muestras ({yamnet.window / YAMNET_RATE:.3f} s)\n")
-    assignment = split_files(args.dataset, labels, args.seed)
-    data = extract_features(args.dataset, yamnet, labels, assignment)
-    features, targets, parts, files = data["features"], data["targets"], data["parts"], data["files"]
-    if not len(features):
+    data = extract_features(args.dataset, yamnet, labels, augmentations)
+    if not len(data["features"]):
         print("No se extrajo ninguna ventana: ¿todo el audio está en silencio?")
         return 1
 
-    masks = {name: parts == name for name in ("train", "val", "test")}
-    print(f"\nVentanas: {len(features)} (entrenamiento aumentado ×{len(AUGMENTATIONS)})")
-    for name, mask in masks.items():
-        print(f"  {name}: {int(mask.sum())} ventanas de {len(set(files[mask]))} archivos")
+    sessions_per_class = [
+        len(set(data["sessions"][data["targets"] == index])) for index in range(len(labels))
+    ]
+    n_folds = min(MAX_FOLDS, min(sessions_per_class))
+    if n_folds < 2:
+        weakest = labels[int(np.argmin(sessions_per_class))]
+        print(f"La clase '{weakest}' tiene una sola sesión: graba al menos 2 para poder evaluar.")
+        return 1
+    splitter = StratifiedGroupKFold(n_splits=n_folds, shuffle=True, random_state=args.seed)
+    folds = list(splitter.split(data["features"], data["targets"], groups=data["sessions"]))
+    originals = int(data["original"].sum())
+    print(f"\nVentanas: {originals} originales ({len(data['features'])} con aumentos) · "
+          f"validación cruzada de {n_folds} pliegues por sesión\n")
 
     best = None
-    for kind in ("raw", "log"):
-        transformed = transform(features, kind)
-        scaler = StandardScaler().fit(transformed[masks["train"]])
-        scaled_train = scaler.transform(transformed[masks["train"]])
+    for kind in TRANSFORMS:
         for c in C_GRID:
-            model = LogisticRegression(C=c, max_iter=4000, class_weight="balanced")
-            model.fit(scaled_train, targets[masks["train"]])
-            window_accuracy, file_accuracy = accuracies(
-                model, scaler, transform(features[masks["val"]], kind), targets[masks["val"]], files[masks["val"]]
-            )
-            print(f"  {kind:<4} C={c:<5} validación · ventana {window_accuracy:.3f} · archivo {file_accuracy:.3f}")
-            score = (file_accuracy, window_accuracy)
+            result = cross_validate(data, folds, kind, c)
+            print(f"  {kind:<4} C={c:<5} ventana {result['window_accuracy']:.3f} · archivo {result['file_accuracy']:.3f}")
+            score = (result["file_accuracy"], result["window_accuracy"])
             if best is None or score > best["score"]:
-                best = {"kind": kind, "C": c, "score": score}
+                best = {"kind": kind, "C": c, "score": score, "result": result}
 
-    kind, c = best["kind"], best["C"]
+    kind, c, result = best["kind"], best["C"], best["result"]
     print(f"\nMejor configuración: {kind}, C={c}")
+    print(f"Validación cruzada · precisión por ventana: {result['window_accuracy']:.3f} · "
+          f"por archivo: {result['file_accuracy']:.3f}")
 
-    # Reentrena con entrenamiento + validación para aprovechar todo el audio disponible.
-    transformed = transform(features, kind)
-    trainval = masks["train"] | masks["val"]
-    scaler = StandardScaler().fit(transformed[trainval])
-    final = LogisticRegression(C=c, max_iter=4000, class_weight="balanced")
-    final.fit(scaler.transform(transformed[trainval]), targets[trainval])
-
-    test_windows, test_files = accuracies(
-        final, scaler, transformed[masks["test"]], targets[masks["test"]], files[masks["test"]]
-    )
-    predictions = final.predict(scaler.transform(transformed[masks["test"]]))
+    evaluated = data["original"] & (result["window_predictions"] >= 0)
     matrix = np.zeros((len(labels), len(labels)), dtype=int)
-    for real, predicted in zip(targets[masks["test"]], predictions):
+    for real, predicted in zip(data["targets"][evaluated], result["window_predictions"][evaluated]):
         matrix[int(real), int(predicted)] += 1
-
-    print(f"\nPrueba · precisión por ventana: {test_windows:.3f} · por archivo: {test_files:.3f}")
-    print("\nMatriz de confusión (filas = real, columnas = predicho)")
+    print("\nMatriz de confusión por ventana (filas = real, columnas = predicho)")
     print(f"{'':<12}" + "".join(f"{name[:8]:>9}" for name in labels) + "   acierto")
     per_class = {}
     for index, name in enumerate(labels):
         total = matrix[index].sum()
-        recall = matrix[index, index] / total if total else 0.0
-        per_class[name] = recall
-        print(f"{name:<12}" + "".join(f"{value:>9}" for value in matrix[index]) + f"{recall:>10.2f}")
+        per_class[name] = float(matrix[index, index] / total) if total else 0.0
+        print(f"{name:<12}" + "".join(f"{value:>9}" for value in matrix[index]) + f"{per_class[name]:>10.2f}")
 
-    args.output.mkdir(parents=True, exist_ok=True)
-    head = {
-        "version": 2,
-        "labels": labels,
-        "featureTransform": kind,
-        "mean": scaler.mean_.astype(np.float32).tolist(),
-        "scale": scaler.scale_.astype(np.float32).tolist(),
-        "weights": [row.tolist() for row in final.coef_.astype(np.float32)],
-        "bias": final.intercept_.astype(np.float32).tolist(),
-    }
+    wrong_files = sorted(
+        f"{name} → {labels[predicted]}"
+        for name, predicted in result["file_predictions"].items()
+        if predicted != result["file_targets"][name]
+    )
+    if wrong_files:
+        print("\nArchivos mal clasificados:")
+        for line in wrong_files:
+            print(f"  {line}")
+
+    # Capa de cada pliegue, para que simulate_app.py --cv mida la app sin trampa.
+    fold_dir = args.output / "folds"
+    if fold_dir.exists():
+        shutil.rmtree(fold_dir)
+    fold_dir.mkdir(parents=True)
+    for number, (train_index, test_index) in enumerate(folds, start=1):
+        scaler, model = fit(data["features"][train_index], data["targets"][train_index], kind, c)
+        test_files = sorted(set(data["files"][test_index].tolist()))
+        (fold_dir / f"fold_{number}.json").write_text(
+            json.dumps(head_json(scaler, model, labels, kind, testFiles=test_files)), encoding="utf-8"
+        )
+
+    # Modelo final con TODO el audio.
+    scaler, model = fit(data["features"], data["targets"], kind, c)
     head_path = args.output / "instrument_head.json"
-    head_path.write_text(json.dumps(head), encoding="utf-8")
+    head_path.write_text(json.dumps(head_json(scaler, model, labels, kind)), encoding="utf-8")
     (args.output / "metrics.json").write_text(
         json.dumps(
             {
                 "labels": labels,
-                "windows": int(len(features)),
-                "augmentations": [name for name, _, _ in AUGMENTATIONS],
+                "files": len(result["file_predictions"]),
+                "windows": originals,
+                "folds": n_folds,
+                "augmentations": [name for name, _, _ in augmentations],
                 "featureTransform": kind,
                 "C": c,
-                "valFileAccuracy": best["score"][0],
-                "testWindowAccuracy": test_windows,
-                "testFileAccuracy": test_files,
+                "cvWindowAccuracy": result["window_accuracy"],
+                "cvFileAccuracy": result["file_accuracy"],
                 "recallPerClass": per_class,
                 "confusionMatrix": matrix.tolist(),
+                "misclassifiedFiles": wrong_files,
             },
             indent=2,
         ),
         encoding="utf-8",
     )
-    (args.output / "split.json").write_text(
-        json.dumps({name: sorted(set(files[mask].tolist())) for name, mask in masks.items()}, indent=2),
-        encoding="utf-8",
-    )
-    print(f"\nModelo: {head_path} ({head_path.stat().st_size / 1024:.0f} kB)")
+    stale_split = args.output / "split.json"
+    if stale_split.exists():
+        stale_split.unlink()
+    print(f"\nModelo final (entrenado con todo el audio): {head_path} ({head_path.stat().st_size / 1024:.0f} kB)")
 
     if not args.no_install:
         args.assets.mkdir(parents=True, exist_ok=True)

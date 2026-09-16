@@ -104,14 +104,16 @@ uv pip install --python ml/.venv/Scripts/python.exe tensorflow==2.20.0 scipy sci
 ml/.venv/Scripts/python.exe ml/scripts/train.py
 ```
 
-El script extrae las características, prueba varias configuraciones, elige la mejor con el
-conjunto de validación, mide con el de prueba y deja en `ml/output/`:
+El script extrae las características y mide cada configuración con **validación cruzada por
+sesiones** (hasta 5 pliegues): cada grabación se evalúa una vez, con un modelo que nunca la vio.
+Así la cifra no depende de qué pocos archivos caigan en "prueba" por azar. Elige la mejor
+configuración y entrena el modelo final con **todo** el audio. Deja en `ml/output/`:
 
 | Archivo | Contenido |
 |---|---|
-| `instrument_head.json` | La capa entrenada; se copia sola a `app/src/main/assets/` |
-| `metrics.json` | Precisión por ventana y por archivo, más la matriz de confusión |
-| `split.json` | Qué archivos fueron a entrenamiento, validación y prueba |
+| `instrument_head.json` | La capa final; se copia sola a `app/src/main/assets/` |
+| `metrics.json` | Precisión de la validación cruzada, acierto por clase, matriz de confusión y archivos fallados |
+| `folds/fold_N.json` | La capa de cada pliegue con sus archivos de prueba (la usa `simulate_app.py --cv`) |
 
 Después hay que **recompilar la app** para que incluya el modelo nuevo. En el arranque de la
 identificación, el log muestra `Modelo propio cargado: [...]` con las clases entrenadas.
@@ -134,11 +136,11 @@ ml/.venv/Scripts/python.exe ml/scripts/train.py --dataset ml/.smoke_dataset --no
 instrumento sin tener que probar a mano en el teléfono:
 
 ```bash
-# como la app: solo los primeros 4 segundos de cada archivo
-ml/.venv/Scripts/python.exe ml/scripts/simulate_app.py --seconds 4
+# la cifra honesta: como la app (4 s) y cada archivo con un modelo que no lo vio
+ml/.venv/Scripts/python.exe ml/scripts/simulate_app.py --cv --seconds 4
 
-# solo los archivos que el modelo no vio al entrenar
-ml/.venv/Scripts/python.exe ml/scripts/simulate_app.py --seconds 4 --split val,test
+# con el modelo final (optimista: ya conoce todos los archivos)
+ml/.venv/Scripts/python.exe ml/scripts/simulate_app.py --seconds 4
 
 # detalle de una clase: alturas detectadas y probabilidades finales
 ml/.venv/Scripts/python.exe ml/scripts/simulate_app.py --files cello --verbose
@@ -175,4 +177,4 @@ Si borras `app/src/main/assets/instrument_head.json`, la app vuelve a funcionar 
 Los `.wav`, `ml/output/` y `ml/.venv/` están en `.gitignore`: el audio pesa mucho para un
 repositorio normal. Guárdalos en Google Drive, un disco externo o usa
 [Git LFS](https://git-lfs.com) si quieres versionarlos. El modelo entrenado
-(`app/src/main/assets/instrument_head.json`) sí se versiona: son 30 kB.
+(`app/src/main/assets/instrument_head.json`) sí se versiona: son unos 110 kB.
