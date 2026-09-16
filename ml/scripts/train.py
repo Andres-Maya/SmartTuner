@@ -20,6 +20,7 @@ Salida en ml/output/:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import shutil
 import sys
@@ -103,9 +104,16 @@ def extract_features(dataset: Path, yamnet: Yamnet, labels: list[str], augmentat
     """Una fila por ventana y por aumento. `original` marca las filas sin aumentar (las que se evalúan)."""
     features, targets, files, sessions, original = [], [], [], [], []
     hop = int(HOP_SECONDS * YAMNET_RATE)
+    seen: dict[str, str] = {}
     for label_index, label in enumerate(labels):
         for path in sorted((dataset / label).glob("*.wav")):
             key = f"{label}/{path.name}"
+            # Un audio repetido con otro nombre contaría como otra sesión y se filtraría a la prueba.
+            digest = hashlib.sha1(read_wav(path).data).hexdigest()
+            if digest in seen:
+                print(f"  {key}: se omite, es idéntico a {seen[digest]}")
+                continue
+            seen[digest] = key
             samples = to_yamnet_rate(*load_audio(path))
             windows = 0
             for start in range(0, max(1, len(samples) - yamnet.window + 1), hop):
