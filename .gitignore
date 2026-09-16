@@ -13,3 +13,11 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+# Dataset de audio y resultados de entrenamiento (ver ml/README.md)
+ml/dataset/**/*.wav
+ml/dataset/**/*.WAV
+ml/output/
+ml/.smoke_dataset/
+ml/.cache/
+ml/.venv/
