@@ -127,16 +127,50 @@ python ml/scripts/make_smoke_dataset.py
 ml/.venv/Scripts/python.exe ml/scripts/train.py --dataset ml/.smoke_dataset --no-install
 ```
 
-## 7. Cómo la usa la app
+## 7. Depurar sin el teléfono
 
-`InstrumentHead` aplica la capa entrenada a cada ventana y el resultado se mezcla con lo que
-ya hacía la app: pesa **75%** la capa entrenada y **25%** la evidencia de YAMNet más el registro
-de notas. Así las clases que no entrenaste (por ejemplo la viola) siguen siendo posibles, y el
-registro sigue descartando instrumentos que no pueden tocar la nota que se oye.
+`simulate_app.py` reproduce en el PC **toda** la decisión de la app (YIN + YAMNet + capa entrenada
++ fusión) sobre las grabaciones del dataset. Sirve para entender por qué se equivoca con un
+instrumento sin tener que probar a mano en el teléfono:
+
+```bash
+# como la app: solo los primeros 4 segundos de cada archivo
+ml/.venv/Scripts/python.exe ml/scripts/simulate_app.py --seconds 4
+
+# solo los archivos que el modelo no vio al entrenar
+ml/.venv/Scripts/python.exe ml/scripts/simulate_app.py --seconds 4 --split val,test
+
+# detalle de una clase: alturas detectadas y probabilidades finales
+ml/.venv/Scripts/python.exe ml/scripts/simulate_app.py --files cello --verbose
+```
+
+Compara dos cifras: **capa entrenada sola** y **app completa**. Si la app acierta menos que la capa,
+el problema está en la fusión, no en el modelo.
+
+## 8. Cómo la usa la app
+
+`InstrumentHead` aplica la capa entrenada a cada ventana y el resultado se mezcla así:
+
+- **YAMNet decide si hay un instrumento.** Sin evidencia de música, la app responde "no reconocí
+  un instrumento" aunque la capa entrenada esté segura: su softmax siempre reparte el 100 %.
+- **La capa entrenada decide cuál**, con un peso de hasta 85 % proporcional a su confianza.
+- **El registro solo veta lo imposible** sobre la capa entrenada (un violín no puede dar un Do3).
+  La bonificación por cuerdas al aire se aplica únicamente a la parte genérica de YAMNet: las notas
+  pisadas de un instrumento coinciden con las cuerdas al aire de otro (Re4 de chelo = Re de viola)
+  y daba la vuelta al resultado.
+- **Si entrenaste la clase `other`**, esa manda sobre el "Otro" de YAMNet, que confunde las cuerdas
+  frotadas con `Singing`.
+
+Para ver qué decidió la app en el teléfono:
+
+```bash
+adb shell setprop log.tag.TunerViewModel DEBUG
+adb logcat | grep TunerViewModel
+```
 
 Si borras `app/src/main/assets/instrument_head.json`, la app vuelve a funcionar solo con YAMNet.
 
-## 8. Git
+## 9. Git
 
 Los `.wav`, `ml/output/` y `ml/.venv/` están en `.gitignore`: el audio pesa mucho para un
 repositorio normal. Guárdalos en Google Drive, un disco externo o usa
