@@ -188,7 +188,19 @@ class TunerViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
         }
-        return session.result()
+        val outcome = session.result()
+        if (Log.isLoggable(TAG, Log.DEBUG)) {
+            val learned = session.headSummary.entries
+                .sortedByDescending { it.value }
+                .take(4)
+                .joinToString { "${it.key}=%.2f".format(it.value) }
+            val decision = (outcome as? IdentificationOutcome.Identified)?.candidates
+                ?.take(3)
+                ?.joinToString { "${it.instrument.datasetLabel}=%.2f".format(it.probability) }
+                ?: "sin instrumento"
+            Log.d(TAG, "${session.analyzedWindows} ventanas · capa: $learned · decisión: $decision")
+        }
+        return outcome
     }
 
     private fun onPitch(result: PitchResult?) {

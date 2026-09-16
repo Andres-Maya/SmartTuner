@@ -96,6 +96,42 @@ class HeadFusionTest {
     }
 
     @Test
+    fun openStringsOfAnotherInstrument_doNotFlipCelloIntoViola() {
+        // Re4 es cuerda al aire de la viola y Re3 lo es del chelo. Con la misma evidencia de timbre,
+        // la nota que se toque no debe cambiar el orden que da la capa entrenada.
+        fun outcomeFor(pitch: Float) = fusion.fuse(
+            windows = yamnetWindows("Cello" to 0.3f, "Bowed string instrument" to 0.4f),
+            pitchesMidi = List(12) { pitch },
+            headWindows = headWindows("cello" to 0.6f, "viola" to 0.25f, "violin" to 0.15f),
+        ) as IdentificationOutcome.Identified
+
+        listOf(62f, 50f).forEach { pitch ->
+            val outcome = outcomeFor(pitch)
+            assertEquals("Con la altura $pitch", Instrument.CELLO, outcome.best.instrument)
+            val viola = outcome.candidates.first { it.instrument == Instrument.VIOLA }
+            assertTrue("La viola no debe superar al chelo con $pitch", viola.probability < outcome.best.probability)
+        }
+    }
+
+    @Test
+    fun trainedOtherClass_beatsYamnetSingingConfusion() {
+        // YAMNet oye "Singing" en las cuerdas frotadas; la clase "other" entrenada evita el falso positivo.
+        val outcome = fusion.fuse(
+            windows = yamnetWindows("Singing" to 0.5f, "Violin, fiddle" to 0.25f, "Bowed string instrument" to 0.3f),
+            pitchesMidi = List(12) { 60f },
+            headWindows = headWindows("viola" to 0.55f, "other" to 0.2f, "violin" to 0.25f),
+        )
+        assertEquals(Instrument.VIOLA, bestOf(outcome))
+    }
+
+    @Test
+    fun openStringBonus_acceptsTheOctaveAbove() {
+        // El micrófono del teléfono atenúa los graves y YIN sube una octava: Mi2 en vez del Mi1 del bajo.
+        assertEquals(2f, fusion.openStringBonus(Instrument.BASS, List(12) { 40f }), 0.001f)
+        assertEquals(1f, fusion.openStringBonus(Instrument.BASS, List(12) { 47f }), 0.001f)
+    }
+
+    @Test
     fun registerStillFilters_impossibleNotes() {
         // La capa dice violín, pero suena un Do2 que el violín no puede producir.
         val outcome = fusion.fuse(
