@@ -32,6 +32,10 @@ data class TunerColors(
     val track: Color,
     val tick: Color,
     val staffLine: Color,
+    /** Fondo del visor de notas y luces, como el cristal de un display. */
+    val display: Color,
+    /** Bisel del visor. */
+    val displayFrame: Color,
 ) {
     /** Fondo de pantalla completa. */
     val screenBrush: Brush = Brush.verticalGradient(listOf(surface, background, backgroundDeep))
@@ -56,6 +60,8 @@ val DarkTunerColors = TunerColors(
     track = Palette.White.copy(alpha = 0.10f),
     tick = Palette.White.copy(alpha = 0.30f),
     staffLine = Palette.White.copy(alpha = 0.40f),
+    display = Palette.Ink950,
+    displayFrame = Palette.White.copy(alpha = 0.07f),
 )
 
 /** Escala de espacios en múltiplos de 4 dp. */
@@ -89,6 +95,12 @@ data class TunerSizes(
     val avatar: Dp = 56.dp,
     val statusDot: Dp = 8.dp,
     val progressBar: Dp = 6.dp,
+    /** Alto del arco de luces del afinador cuando se muestra suelto. */
+    val ledArc: Dp = 132.dp,
+    /** Alto del dígito grande del visor. */
+    val displayLetter: Dp = 112.dp,
+    /** Lado de los recuadros de alteración y octava. */
+    val displayCell: Dp = 50.dp,
     val border: Dp = 1.dp,
     val borderStrong: Dp = 1.5.dp,
 )

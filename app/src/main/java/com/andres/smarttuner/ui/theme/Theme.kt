@@ -6,7 +6,9 @@ import androidx.compose.material3.Shapes
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.unit.dp
 
 /**
@@ -32,15 +34,36 @@ object TunerTheme {
 
     val typography: TunerTypography
         @Composable @ReadOnlyComposable get() = LocalTunerTypography.current
+
+    /** Tema de color activo y cómo cambiarlo desde cualquier pantalla. */
+    val palettes: ThemeController
+        @Composable @ReadOnlyComposable get() = LocalThemeController.current
 }
 
-/** El afinador usa siempre un tema oscuro: mejor contraste para los colores de afinación. */
+/** Permite a cualquier pantalla leer el tema elegido y cambiarlo. */
+@Immutable
+class ThemeController(
+    val palette: ThemePalette,
+    val select: (ThemePalette) -> Unit,
+)
+
+internal val LocalThemeController = staticCompositionLocalOf { ThemeController(ThemePalette.Default) {} }
+
+/**
+ * El afinador usa siempre un tema oscuro: mejor contraste para los colores de afinación.
+ * [palette] elige el acento; [onSelectPalette] recibe el cambio desde el menú de apariencia.
+ */
 @Composable
-fun SmartTunerTheme(content: @Composable () -> Unit) {
-    val colors = DarkTunerColors
+fun SmartTunerTheme(
+    palette: ThemePalette = ThemePalette.Default,
+    onSelectPalette: (ThemePalette) -> Unit = {},
+    content: @Composable () -> Unit,
+) {
+    val colors = palette.colors
     val typography = TunerTypography()
 
     CompositionLocalProvider(
+        LocalThemeController provides ThemeController(palette, onSelectPalette),
         LocalTunerColors provides colors,
         LocalTunerSpacing provides TunerSpacing(),
         LocalTunerSizes provides TunerSizes(),

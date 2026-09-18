@@ -23,6 +23,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
@@ -159,6 +160,21 @@ fun BackChevron(color: Color = TunerTheme.colors.textPrimary, size: Dp = 16.dp) 
             color = color,
             style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round),
         )
+    }
+}
+
+/** Paleta de colores dibujada, para abrir el menu de apariencia. */
+@Composable
+fun PaletteIcon(color: Color = TunerTheme.colors.accent, size: Dp = 20.dp) {
+    Canvas(Modifier.size(size)) {
+        val radius = this.size.minDimension / 2f - 1.dp.toPx()
+        val dot = radius * 0.24f
+        drawCircle(color, radius, style = Stroke(width = 1.8.dp.toPx()))
+        drawCircle(color, dot, Offset(center.x - radius * 0.42f, center.y - radius * 0.18f))
+        drawCircle(color.copy(alpha = 0.75f), dot, Offset(center.x + radius * 0.02f, center.y - radius * 0.48f))
+        drawCircle(color.copy(alpha = 0.5f), dot, Offset(center.x + radius * 0.45f, center.y - radius * 0.02f))
+        // El hueco del pulgar de la paleta.
+        drawCircle(color.copy(alpha = 0.3f), dot * 1.3f, Offset(center.x + radius * 0.12f, center.y + radius * 0.46f))
     }
 }
 
