@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -20,6 +21,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -28,6 +30,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.andres.smarttuner.ui.theme.SmartTunerTheme
 import com.andres.smarttuner.ui.theme.TunerTheme
+import com.andres.smarttuner.ui.tuner.LedTuningArc
 
 /**
  * Catálogo del sistema de diseño. Ábrelo en la vista previa de Android Studio para ver
@@ -79,11 +82,34 @@ private fun DesignSystemCatalog() {
                     "button" to typography.button,
                     "status" to typography.status,
                 ).forEach { (name, style) -> TypeSample(name, style) }
-                Row {
-                    Text("A", color = colors.textPrimary, style = typography.noteLetter)
-                    Column(Modifier.padding(top = spacing.md)) {
-                        Text("♯", color = colors.accent, style = typography.noteAccidental)
-                        Text("4", color = colors.textMuted, style = typography.noteOctave)
+            }
+
+            CatalogSection("Visor") {
+                LedTuningArc(
+                    cents = -18f,
+                    hasSignal = true,
+                    inTune = false,
+                    color = colors.nearlyInTune,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(TunerTheme.sizes.ledArc),
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    SegmentText(
+                        text = "A",
+                        color = colors.inTune,
+                        modifier = Modifier
+                            .width(TunerTheme.sizes.displayLetter * 0.58f)
+                            .height(TunerTheme.sizes.displayLetter),
+                    )
+                    Spacer(Modifier.width(spacing.sm))
+                    Column(verticalArrangement = Arrangement.spacedBy(spacing.xs)) {
+                        DisplayCell(Modifier.size(TunerTheme.sizes.displayCell)) {
+                            SegmentAccidental(sharp = true, lit = true, color = colors.accent, modifier = Modifier.fillMaxSize())
+                        }
+                        DisplayCell(Modifier.size(TunerTheme.sizes.displayCell)) {
+                            SegmentText("4", colors.accent, Modifier.fillMaxSize())
+                        }
                     }
                 }
             }
@@ -106,6 +132,9 @@ private fun DesignSystemCatalog() {
                     )
                 }
                 Stepper("La 440", onDecrement = {}, onIncrement = {}, decrementDescription = "−", incrementDescription = "+")
+                Row(horizontalArrangement = Arrangement.spacedBy(spacing.md)) {
+                    IconCircleButton(onClick = {}, contentDescription = "Apariencia") { PaletteIcon() }
+                }
             }
 
             CatalogSection("Indicadores") {
