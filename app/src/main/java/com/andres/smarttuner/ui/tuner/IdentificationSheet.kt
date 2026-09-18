@@ -227,11 +227,16 @@ private fun IdentifiedContent(
     val selectedCandidate = outcome.candidates.first { it.instrument == selected }
     val confidence = Confidence.of(selectedCandidate.probability)
 
+    Spacer(Modifier.height(spacing.sm))
     Crossfade(targetState = selected, label = "selectedInstrument") { instrument ->
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
             val name = instrumentName(instrument, outcome.otherLabel)
-            InstrumentIcon(instrument, contentDescription = name, modifier = Modifier.size(TunerTheme.sizes.iconLarge))
-            Spacer(Modifier.height(spacing.md))
+            GlowingInstrumentIcon(
+                instrument = instrument,
+                contentDescription = name,
+                modifier = Modifier.size(TunerTheme.sizes.iconLarge),
+            )
+            Spacer(Modifier.height(spacing.lg))
             Text(text = name, color = colors.textPrimary, style = typography.screenTitle, textAlign = TextAlign.Center)
         }
     }
@@ -304,7 +309,12 @@ private fun CandidateOption(
     val textColor = if (selected) colors.textPrimary else colors.textMuted
 
     SelectableOption(selected = selected, onSelect = onSelect) {
-        InstrumentIcon(candidate.instrument, contentDescription = null, modifier = Modifier.size(TunerTheme.sizes.iconSmall))
+        InstrumentIcon(
+            instrument = candidate.instrument,
+            contentDescription = null,
+            modifier = Modifier.size(TunerTheme.sizes.iconSmall),
+            tint = if (selected) colors.accent else colors.textMuted,
+        )
         Spacer(Modifier.width(spacing.md))
         Text(
             text = instrumentName(candidate.instrument, otherLabel),
@@ -331,7 +341,7 @@ private fun CandidateOption(
 
 @Composable
 private fun UnknownContent(@StringRes title: Int, @StringRes body: Int) {
-    InstrumentIcon(
+    GlowingInstrumentIcon(
         instrument = null,
         contentDescription = stringResource(R.string.unknown_instrument),
         modifier = Modifier.size(TunerTheme.sizes.iconLarge),
