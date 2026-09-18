@@ -57,6 +57,11 @@
     <string name="tuning_progress">%1$d de %2$d cuerdas afinadas</string>
     <string name="tuning_all_done">¡Instrumento afinado!</string>
 
+    <string name="appearance_open">Cambiar el color de la app</string>
+    <string name="appearance_title">Color de la app</string>
+    <string name="appearance_body">Elige el color principal: cambia los botones, el identificador, los iconos de los instrumentos y el visor.</string>
+    <string name="appearance_done">Listo</string>
+
     <string name="permission_title">Necesito tu micrófono</string>
     <string name="permission_body">SmartTuner escucha tu instrumento para detectar la nota y decirte qué tan afinado está. El audio se procesa en el teléfono y nunca se guarda ni se envía.</string>
     <string name="permission_grant">Permitir micrófono</string>
