@@ -10,7 +10,6 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
@@ -34,6 +33,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -49,7 +49,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
@@ -60,20 +59,27 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.andres.smarttuner.R
+import com.andres.smarttuner.music.Accidental
 import com.andres.smarttuner.music.AccidentalStyle
 import com.andres.smarttuner.music.NoteName
 import com.andres.smarttuner.tuner.TunerMode
 import com.andres.smarttuner.tuner.TunerUiState
 import com.andres.smarttuner.tuner.TunerViewModel
 import com.andres.smarttuner.tuner.TuningStatus
+import com.andres.smarttuner.ui.components.DisplayCell
 import com.andres.smarttuner.ui.components.GhostButton
+import com.andres.smarttuner.ui.components.IconCircleButton
 import com.andres.smarttuner.ui.components.MessageBlock
+import com.andres.smarttuner.ui.components.PaletteIcon
 import com.andres.smarttuner.ui.components.PrimaryButton
 import com.andres.smarttuner.ui.components.ScreenColumn
+import com.andres.smarttuner.ui.components.SegmentAccidental
+import com.andres.smarttuner.ui.components.SegmentText
 import com.andres.smarttuner.ui.components.SegmentedToggle
 import com.andres.smarttuner.ui.components.StatRow
 import com.andres.smarttuner.ui.components.StatusPill
 import com.andres.smarttuner.ui.components.Stepper
+import com.andres.smarttuner.ui.theme.AppearanceSheet
 import com.andres.smarttuner.ui.theme.SmartTunerTheme
 import com.andres.smarttuner.ui.theme.TunerTheme
 import java.util.Locale
@@ -92,6 +98,7 @@ fun TunerRoute(viewModel: TunerViewModel) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var hasPermission by remember { mutableStateOf(context.hasRecordAudioPermission()) }
     var hasAsked by rememberSaveable { mutableStateOf(false) }
+    var showAppearance by rememberSaveable { mutableStateOf(false) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -142,11 +149,13 @@ fun TunerRoute(viewModel: TunerViewModel) {
                         onSelectAccidentalStyle = viewModel::setAccidentalStyle,
                         onChangeReference = viewModel::changeReference,
                         onIdentifyInstrument = viewModel::identifyInstrument,
+                        onOpenAppearance = { showAppearance = true },
                     )
                     is TunerMode.InstrumentTuning -> InstrumentTuningScreen(
                         state = state,
                         instrument = mode.instrument,
                         onBack = viewModel::closeInstrumentTuning,
+                        onOpenAppearance = { showAppearance = true },
                     )
                 }
             }
@@ -170,6 +179,7 @@ fun TunerRoute(viewModel: TunerViewModel) {
                 },
             )
         }
+        if (showAppearance) AppearanceSheet(onDismiss = { showAppearance = false })
     }
 }
 
@@ -179,6 +189,7 @@ fun TunerScreen(
     onSelectAccidentalStyle: (AccidentalStyle) -> Unit,
     onChangeReference: (Float) -> Unit,
     onIdentifyInstrument: () -> Unit,
+    onOpenAppearance: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val spacing = TunerTheme.spacing
@@ -196,13 +207,14 @@ fun TunerScreen(
     val idle = state.status == TuningStatus.IDLE
 
     ScreenColumn(modifier) {
-        TopBar(state.accidentalStyle, onSelectAccidentalStyle)
+        TopBar(state.accidentalStyle, onSelectAccidentalStyle, onOpenAppearance)
         Spacer(Modifier.weight(1f))
         TunerDial(
             cents = animatedCents,
             hasSignal = state.hasSignal,
             inTune = state.status == TuningStatus.IN_TUNE,
             note = state.note,
+            accidentalStyle = state.accidentalStyle,
             color = color,
             lowerNote = state.lowerNeighbor,
             upperNote = state.upperNeighbor,
@@ -240,7 +252,11 @@ private fun chromaticStatusText(state: TunerUiState): String = when {
 }
 
 @Composable
-private fun TopBar(style: AccidentalStyle, onSelect: (AccidentalStyle) -> Unit) {
+private fun TopBar(
+    style: AccidentalStyle,
+    onSelect: (AccidentalStyle) -> Unit,
+    onOpenAppearance: () -> Unit,
+) {
     val colors = TunerTheme.colors
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
@@ -253,16 +269,30 @@ private fun TopBar(style: AccidentalStyle, onSelect: (AccidentalStyle) -> Unit) 
             onSelect = onSelect,
             contentDescription = stringResource(R.string.toggle_accidentals),
         )
+        Spacer(Modifier.width(TunerTheme.spacing.sm))
+        AppearanceButton(onOpenAppearance)
     }
 }
 
-/** Arco de afinación con la nota objetivo en el centro y sus vecinas grave y aguda a los lados. */
+/** Abre el menú para cambiar el color de la app. */
+@Composable
+internal fun AppearanceButton(onClick: () -> Unit) {
+    IconCircleButton(onClick = onClick, contentDescription = stringResource(R.string.appearance_open)) {
+        PaletteIcon()
+    }
+}
+
+/**
+ * Visor del afinador: el arco de luces de pedal arriba y, en su hueco, la nota en siete
+ * segmentos con sus recuadros de alteración y octava entre las notas vecinas.
+ */
 @Composable
 internal fun TunerDial(
     cents: Float,
     hasSignal: Boolean,
     inTune: Boolean,
     note: NoteName?,
+    accidentalStyle: AccidentalStyle,
     color: Color,
     lowerNote: NoteName?,
     upperNote: NoteName?,
@@ -272,35 +302,49 @@ internal fun TunerDial(
     Box(
         modifier
             .fillMaxWidth()
-            .aspectRatio(1.3f),
+            .aspectRatio(1.45f),
     ) {
-        TuningGauge(cents, hasSignal, color, Modifier.matchParentSize())
-        NoteDisplay(
-            note = note,
+        LedTuningArc(
+            cents = cents,
             hasSignal = hasSignal,
             inTune = inTune,
             color = color,
-            emptyLabel = emptyLabel,
-            modifier = Modifier.align(Alignment.BottomCenter),
+            modifier = Modifier.matchParentSize(),
         )
-        NeighborLabel(
-            title = stringResource(R.string.flat_side),
-            note = lowerNote,
-            alignEnd = false,
-            modifier = Modifier.align(Alignment.BottomStart),
-        )
-        NeighborLabel(
-            title = stringResource(R.string.sharp_side),
-            note = upperNote,
-            alignEnd = true,
-            modifier = Modifier.align(Alignment.BottomEnd),
-        )
+        Row(
+            Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            NeighborLabel(
+                title = stringResource(R.string.flat_side),
+                note = lowerNote,
+                alignEnd = false,
+                modifier = Modifier.weight(1f),
+            )
+            NoteDisplay(
+                note = note,
+                accidentalStyle = accidentalStyle,
+                hasSignal = hasSignal,
+                inTune = inTune,
+                color = color,
+                emptyLabel = emptyLabel,
+            )
+            NeighborLabel(
+                title = stringResource(R.string.sharp_side),
+                note = upperNote,
+                alignEnd = true,
+                modifier = Modifier.weight(1f),
+            )
+        }
     }
 }
 
 @Composable
 private fun NoteDisplay(
     note: NoteName?,
+    accidentalStyle: AccidentalStyle,
     hasSignal: Boolean,
     inTune: Boolean,
     color: Color,
@@ -308,55 +352,66 @@ private fun NoteDisplay(
     modifier: Modifier = Modifier,
 ) {
     val colors = TunerTheme.colors
+    val sizes = TunerTheme.sizes
     val typography = TunerTheme.typography
-    val contentAlpha by animateFloatAsState(if (hasSignal) 1f else 0.4f, tween(300), label = "noteAlpha")
-    val glowAlpha by animateFloatAsState(if (inTune) 0.5f else 0f, tween(350), label = "glow")
+    val glow by animateFloatAsState(if (hasSignal) 1f else 0.2f, tween(300), label = "noteGlow")
+    val halo by animateFloatAsState(if (inTune) 0.26f else 0.07f, tween(350), label = "noteHalo")
+    // Sin sonido el visor entero queda en reposo, atenuado.
+    val letterColor = if (hasSignal) color else colors.textMuted.copy(alpha = 0.6f)
+    val cellColor = if (hasSignal) colors.accent else colors.accent.copy(alpha = 0.55f)
+    // Sin alteración el signo queda apagado, pero muestra el que se está usando (♯ o ♭).
+    val sharp = note?.accidental?.let { it == Accidental.SHARP } ?: (accidentalStyle == AccidentalStyle.SHARPS)
 
-    AnimatedContent(
-        targetState = note,
-        // El brillo se dibuja fuera de la capa con alpha: dentro de ella quedaría recortado en un rectángulo.
-        modifier = modifier
-            .drawBehind {
-                val radius = size.maxDimension * 0.8f
+    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        Row(
+            Modifier.drawBehind {
+                val radius = size.maxDimension * 0.7f
                 drawCircle(
                     brush = Brush.radialGradient(
-                        colors = listOf(color.copy(alpha = glowAlpha), Color.Transparent),
+                        colors = listOf(letterColor.copy(alpha = halo), Color.Transparent),
                         center = center,
                         radius = radius,
                     ),
                     radius = radius,
                 )
-            }
-            .graphicsLayer { alpha = contentAlpha },
-        transitionSpec = {
-            // Una nota más aguda entra por la derecha (lado agudo); una más grave, por la izquierda.
-            val direction = if ((targetState?.midi ?: 0) >= (initialState?.midi ?: 0)) 1 else -1
-            (slideInHorizontally(tween(260)) { it * direction / 2 } + fadeIn(tween(260)))
-                .togetherWith(slideOutHorizontally(tween(260)) { -it * direction / 2 } + fadeOut(tween(200)))
-                .using(SizeTransform(clip = false))
-        },
-        contentAlignment = Alignment.Center,
-        label = "note",
-    ) { current ->
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            if (current == null) {
-                Text("–", color = colors.textMuted, style = typography.notePlaceholder)
-                Text(emptyLabel, color = colors.textMuted, style = typography.body)
-            } else {
-                Row {
-                    Text(current.letter.toString(), color = colors.textPrimary, style = typography.noteLetter)
-                    Column(Modifier.padding(top = TunerTheme.spacing.md, start = TunerTheme.spacing.xxs)) {
-                        Text(
-                            text = current.accidentalSymbol.ifEmpty { " " },
-                            color = colors.accent,
-                            style = typography.noteAccidental,
-                        )
-                        Text(current.octave.toString(), color = colors.textMuted, style = typography.noteOctave)
-                    }
+            },
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            SegmentText(
+                text = note?.letter?.toString() ?: "-",
+                color = letterColor,
+                glow = glow,
+                modifier = Modifier
+                    .width(sizes.displayLetter * 0.58f)
+                    .height(sizes.displayLetter),
+            )
+            Spacer(Modifier.width(TunerTheme.spacing.sm))
+            Column(verticalArrangement = Arrangement.spacedBy(TunerTheme.spacing.xs)) {
+                DisplayCell(Modifier.size(sizes.displayCell)) {
+                    SegmentAccidental(
+                        sharp = sharp,
+                        lit = note?.accidental != null,
+                        color = cellColor,
+                        glow = glow,
+                        modifier = Modifier.fillMaxSize(),
+                    )
                 }
-                Text(current.solfegeLabel, color = colors.textMuted, style = typography.noteCaption)
+                DisplayCell(Modifier.size(sizes.displayCell)) {
+                    SegmentText(
+                        text = note?.octave?.toString() ?: "-",
+                        color = cellColor,
+                        glow = glow,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
             }
         }
+        Spacer(Modifier.height(TunerTheme.spacing.sm))
+        Text(
+            text = note?.solfegeLabel ?: emptyLabel,
+            color = colors.textMuted,
+            style = typography.noteCaption,
+        )
     }
 }
 
@@ -364,7 +419,7 @@ private fun NoteDisplay(
 private fun NeighborLabel(title: String, note: NoteName?, alignEnd: Boolean, modifier: Modifier = Modifier) {
     val colors = TunerTheme.colors
     Column(
-        modifier.padding(bottom = TunerTheme.spacing.sm),
+        modifier,
         horizontalAlignment = if (alignEnd) Alignment.End else Alignment.Start,
     ) {
         Text(title, color = colors.textMuted, style = TunerTheme.typography.overline)
@@ -486,6 +541,7 @@ private fun TunerScreenPreview() {
             onSelectAccidentalStyle = {},
             onChangeReference = {},
             onIdentifyInstrument = {},
+            onOpenAppearance = {},
         )
     }
 }
