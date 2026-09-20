@@ -1,34 +1,28 @@
 package com.andres.smarttuner.ui.tuner
 
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.annotation.DrawableRes
+import androidx.compose.foundation.Image
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.svg.SvgDecoder
+import com.andres.smarttuner.R
 import com.andres.smarttuner.music.Instrument
+import com.andres.smarttuner.ui.components.spinOnTap
 import com.andres.smarttuner.ui.theme.TunerTheme
 
 private const val QUESTION_ICON = "question.svg"
 
 /**
- * Icono SVG desde assets, teñido con el color del tema para que siga el aspecto de la app.
- * Con `null` (instrumento no reconocido) muestra el signo de interrogación.
+ * Icono de línea del instrumento (SVG desde assets), teñido con el color del tema.
+ * Se usa donde el dibujo va pequeño y el neón no se leería. Con `null` (instrumento no
+ * reconocido) muestra el signo de interrogación.
  */
 @Composable
 fun InstrumentIcon(
@@ -54,48 +48,22 @@ fun InstrumentIcon(
 }
 
 /**
- * El mismo icono con un halo de luz que respira a su alrededor, para destacar el
- * instrumento en el identificador.
+ * El instrumento dibujado como un tubo de neón del color del tema. Al tocarlo da una vuelta
+ * rápida, igual que el logo de la app.
  */
 @Composable
-fun GlowingInstrumentIcon(
+fun NeonInstrumentIcon(
     instrument: Instrument?,
     contentDescription: String?,
     modifier: Modifier = Modifier,
-    glowColor: Color = TunerTheme.colors.accent,
+    tint: Color = TunerTheme.colors.accent,
 ) {
-    val transition = rememberInfiniteTransition(label = "instrumentGlow")
-    val breath by transition.animateFloat(
-        initialValue = 0.85f,
-        targetValue = 1.15f,
-        animationSpec = infiniteRepeatable(tween(2400, easing = FastOutSlowInEasing), RepeatMode.Reverse),
-        label = "breath",
+    Image(
+        painter = painterResource(instrument.neonIcon),
+        contentDescription = contentDescription,
+        colorFilter = ColorFilter.tint(tint),
+        modifier = modifier.spinOnTap(contentDescription),
     )
-    Box(
-        modifier.drawBehind {
-            val radius = size.maxDimension * 0.78f * breath
-            drawCircle(
-                brush = Brush.radialGradient(
-                    colors = listOf(
-                        glowColor.copy(alpha = 0.40f),
-                        glowColor.copy(alpha = 0.14f),
-                        Color.Transparent,
-                    ),
-                    center = center,
-                    radius = radius,
-                ),
-                radius = radius,
-            )
-        },
-        contentAlignment = Alignment.Center,
-    ) {
-        InstrumentIcon(
-            instrument = instrument,
-            contentDescription = contentDescription,
-            modifier = Modifier.fillMaxSize(),
-            tint = glowColor,
-        )
-    }
 }
 
 private val Instrument.iconAsset: String
@@ -106,4 +74,15 @@ private val Instrument.iconAsset: String
         Instrument.CELLO -> "chelo.svg"
         Instrument.UKULELE -> "ukulele.svg"
         Instrument.OTHER -> QUESTION_ICON
+    }
+
+@get:DrawableRes
+private val Instrument?.neonIcon: Int
+    get() = when (this) {
+        Instrument.GUITAR -> R.drawable.neon_guitar
+        Instrument.BASS -> R.drawable.neon_bass
+        Instrument.VIOLIN, Instrument.VIOLA -> R.drawable.neon_violin
+        Instrument.CELLO -> R.drawable.neon_chelo
+        Instrument.UKULELE -> R.drawable.neon_ukulele
+        Instrument.OTHER, null -> R.drawable.neon_question
     }

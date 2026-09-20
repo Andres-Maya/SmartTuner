@@ -52,6 +52,39 @@ class InstrumentTest {
     }
 
     @Test
+    fun variantsKeepStandardFirst() {
+        assertEquals(Instrument.GUITAR.tunings.first(), Instrument.GUITAR.standardTuning)
+        assertEquals(listOf(6, 7, 6, 6), Instrument.GUITAR.tunings.map { it.strings.size })
+        assertEquals(listOf(4, 5, 6), Instrument.BASS.tunings.map { it.strings.size })
+    }
+
+    @Test
+    fun sevenStringGuitarAddsLowB() {
+        val seven = Instrument.GUITAR.tunings[1]
+        assertEquals("B1", seven.strings.last().note().label)
+        assertEquals(7, seven.strings.last().number)
+    }
+
+    @Test
+    fun fiveStringBassAddsLowB() {
+        assertEquals("B0", Instrument.BASS.tunings[1].strings.last().note().label)
+    }
+
+    @Test
+    fun match_comparesAgainstTheChosenString() {
+        // Suena un La2 (110 Hz) con la 6ª cuerda elegida a mano: mide contra Mi2, una quinta debajo.
+        val match = Instrument.GUITAR.standardTuning.match(6, 110f)!!
+        assertEquals(6, match.string.number)
+        assertEquals(500f, match.cents, 1f)
+    }
+
+    @Test
+    fun match_unknownStringIsNull() {
+        assertNull(Instrument.GUITAR.standardTuning.match(9, 110f))
+        assertNull(Instrument.GUITAR.standardTuning.match(1, 0f))
+    }
+
+    @Test
     fun otherIsChromatic() {
         assertTrue(Instrument.OTHER.isChromatic)
         assertNull(Instrument.OTHER.closestString(440f))

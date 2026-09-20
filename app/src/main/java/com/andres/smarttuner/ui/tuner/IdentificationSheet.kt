@@ -34,6 +34,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -50,8 +51,10 @@ import androidx.compose.ui.unit.dp
 import com.andres.smarttuner.R
 import com.andres.smarttuner.ai.IdentificationOutcome
 import com.andres.smarttuner.ai.InstrumentCandidate
+import com.andres.smarttuner.music.AccidentalStyle
 import com.andres.smarttuner.music.Instrument
 import com.andres.smarttuner.music.InstrumentFamily
+import com.andres.smarttuner.music.Tuning
 import com.andres.smarttuner.tuner.IdentificationUiState
 import com.andres.smarttuner.ui.components.Badge
 import com.andres.smarttuner.ui.components.GhostButton
@@ -69,8 +72,9 @@ import kotlin.math.roundToInt
 @Composable
 fun IdentificationSheet(
     state: IdentificationUiState,
+    accidentalStyle: AccidentalStyle,
     onRetry: () -> Unit,
-    onAccept: (Instrument?) -> Unit,
+    onAccept: (Instrument?, Tuning?) -> Unit,
     onDismiss: () -> Unit,
 ) {
     if (state == IdentificationUiState.Hidden) return
@@ -81,6 +85,8 @@ fun IdentificationSheet(
     // La IA preselecciona el más probable; el usuario puede elegir otro de las opciones.
     val identified = (state as? IdentificationUiState.Finished)?.outcome as? IdentificationOutcome.Identified
     var selected by rememberSaveable(identified) { mutableStateOf(identified?.best?.instrument) }
+    // La variante vuelve a la estándar cada vez que cambia el instrumento elegido.
+    var tuning by remember(selected) { mutableStateOf(selected?.standardTuning) }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -109,7 +115,10 @@ fun IdentificationSheet(
                             is IdentificationOutcome.Identified -> IdentifiedContent(
                                 outcome = outcome,
                                 selected = selected ?: outcome.best.instrument,
+                                tuning = tuning ?: outcome.best.instrument.standardTuning,
+                                accidentalStyle = accidentalStyle,
                                 onSelect = { selected = it },
+                                onSelectTuning = { tuning = it },
                             )
                             IdentificationOutcome.NoInstrument -> UnknownContent(
                                 title = R.string.identify_none_title,
@@ -131,8 +140,12 @@ fun IdentificationSheet(
             } else {
                 val tuningInstrument = selected?.takeIf { identified != null }?.takeUnless { it.isChromatic }
                 if (tuningInstrument != null) {
+                    val label = tuning
+                        ?.takeIf { tuningInstrument.tunings.size > 1 }
+                        ?.let { "${tuningInstrument.displayName} · ${it.name}" }
+                        ?: tuningInstrument.displayName
                     Text(
-                        text = stringResource(R.string.identify_accept_hint, tuningInstrument.displayName),
+                        text = stringResource(R.string.identify_accept_hint, label),
                         color = colors.textMuted,
                         style = TunerTheme.typography.caption,
                         textAlign = TextAlign.Center,
@@ -147,7 +160,7 @@ fun IdentificationSheet(
                     )
                     PrimaryButton(
                         text = stringResource(R.string.identify_accept),
-                        onClick = { onAccept(if (identified != null) selected else null) },
+                        onClick = { onAccept(if (identified != null) selected else null, tuning) },
                         modifier = Modifier.weight(1f),
                     )
                 }
@@ -218,7 +231,10 @@ private fun ListeningContent(progress: Float) {
 private fun IdentifiedContent(
     outcome: IdentificationOutcome.Identified,
     selected: Instrument,
+    tuning: Tuning,
+    accidentalStyle: AccidentalStyle,
     onSelect: (Instrument) -> Unit,
+    onSelectTuning: (Tuning) -> Unit,
 ) {
     val colors = TunerTheme.colors
     val spacing = TunerTheme.spacing
@@ -231,7 +247,7 @@ private fun IdentifiedContent(
     Crossfade(targetState = selected, label = "selectedInstrument") { instrument ->
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
             val name = instrumentName(instrument, outcome.otherLabel)
-            GlowingInstrumentIcon(
+            NeonInstrumentIcon(
                 instrument = instrument,
                 contentDescription = name,
                 modifier = Modifier.size(TunerTheme.sizes.iconLarge),
@@ -283,6 +299,27 @@ private fun IdentifiedContent(
                 onSelect = { onSelect(candidate.instrument) },
             )
         }
+    }
+
+    // Variantes del instrumento elegido: 7 cuerdas, bajo de 5, ukelele barítono…
+    if (selected.tunings.size > 1) {
+        Spacer(Modifier.height(spacing.xl))
+        SectionLabel(stringResource(R.string.identify_type_title), Modifier.fillMaxWidth())
+        Text(
+            text = stringResource(R.string.identify_type_hint),
+            color = colors.textMuted,
+            style = typography.footnote,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = spacing.xxs),
+        )
+        Spacer(Modifier.height(spacing.md))
+        TuningOptions(
+            instrument = selected,
+            selected = tuning,
+            onSelect = onSelectTuning,
+            style = accidentalStyle,
+        )
     }
 
     if (best.instrument.family == InstrumentFamily.BOWED) {
@@ -341,7 +378,7 @@ private fun CandidateOption(
 
 @Composable
 private fun UnknownContent(@StringRes title: Int, @StringRes body: Int) {
-    GlowingInstrumentIcon(
+    NeonInstrumentIcon(
         instrument = null,
         contentDescription = stringResource(R.string.unknown_instrument),
         modifier = Modifier.size(TunerTheme.sizes.iconLarge),

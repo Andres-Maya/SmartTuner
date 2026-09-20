@@ -38,6 +38,8 @@
     <string name="confidence_medium">media</string>
     <string name="confidence_low">baja</string>
     <string name="identify_choose_title">ELIGE EL INSTRUMENTO A AFINAR</string>
+    <string name="identify_type_title">TIPO</string>
+    <string name="identify_type_hint">Cuántas cuerdas tiene el tuyo o en qué afinación está.</string>
     <string name="identify_choose_hint">La IA preseleccionó el más probable. Si se equivocó, toca el correcto.</string>
     <string name="identify_selected_by_user">Elegido por ti · la IA sugería %1$s</string>
     <string name="identify_other_named">Otro · %1$s</string>
@@ -55,6 +57,13 @@
     <string name="tuning_string_flat">Cuerda %1$d grave · sube</string>
     <string name="tuning_string_sharp">Cuerda %1$d aguda · baja</string>
     <string name="tuning_progress">%1$d de %2$d cuerdas afinadas</string>
+    <string name="tuning_type_title">Tipo de %1$s</string>
+    <string name="tuning_type_body">Elige cuántas cuerdas tiene o en qué afinación está.</string>
+    <string name="tuning_type_change">Cambiar el tipo de instrumento</string>
+    <string name="tuning_select_string">Afinar la cuerda %1$d</string>
+    <string name="tuning_play_string">Escuchar la cuerda %1$d</string>
+    <string name="tuning_string_sounding">Sonando la cuerda %1$d · no te escucho</string>
+    <string name="tuning_string_selected">Afinando la cuerda %1$d · tócala otra vez para soltarla</string>
     <string name="tuning_all_done">¡Instrumento afinado!</string>
 
     <string name="appearance_open">Cambiar el color de la app</string>
