@@ -1,7 +1,9 @@
 package com.andres.smarttuner.ui.theme
 
+import androidx.annotation.DrawableRes
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
+import com.andres.smarttuner.R
 
 /**
  * Temas de color que puede elegir la persona que usa la app. Cada uno cambia el acento
@@ -14,13 +16,15 @@ enum class ThemePalette(
     val displayName: String,
     val accent: Color,
     val accentAlt: Color,
+    /** Logo de neón del tema, que se muestra junto al nombre de la app. */
+    @DrawableRes val logo: Int,
 ) {
-    INDIGO("Índigo", Palette.Periwinkle400, Palette.Lavender400),
-    CYAN("Cian", Color(0xFF38BDF8), Color(0xFF22D3EE)),
-    VIOLET("Violeta", Color(0xFFA78BFA), Color(0xFFE879F9)),
-    MAGENTA("Magenta", Color(0xFFF472B6), Color(0xFFFB7185)),
-    AMBER("Ámbar", Color(0xFFFBBF24), Color(0xFFFB923C)),
-    LIME("Lima", Color(0xFFA3E635), Color(0xFF4ADE80)),
+    INDIGO("Índigo", Palette.Periwinkle400, Palette.Lavender400, R.drawable.logo_indigo),
+    CYAN("Cian", Color(0xFF38BDF8), Color(0xFF22D3EE), R.drawable.logo_cyan),
+    VIOLET("Violeta", Color(0xFFA78BFA), Color(0xFFE879F9), R.drawable.logo_violet),
+    MAGENTA("Magenta", Color(0xFFF472B6), Color(0xFFFB7185), R.drawable.logo_magenta),
+    AMBER("Ámbar", Color(0xFFFBBF24), Color(0xFFFB923C), R.drawable.logo_amber),
+    LIME("Lima", Color(0xFFA3E635), Color(0xFF4ADE80), R.drawable.logo_lime),
     ;
 
     /** Paleta completa del tema, derivada del acento sobre la base oscura. */

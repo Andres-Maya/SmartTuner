@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- API 31+: el sistema dibuja el logo centrado sobre el fondo indicado. -->
+    <style name="Theme.SmartTuner.Splash" parent="Theme.SmartTuner">
+        <item name="android:windowSplashScreenBackground">@color/splash_background</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/splash_logo</item>
+    </style>
+</resources>

@@ -3,4 +3,7 @@
     <color name="night">#FF090D1C</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+    <!-- El neon esta dibujado sobre negro: el icono y la carga usan el mismo fondo. -->
+    <color name="launcher_background">#FF000000</color>
+    <color name="splash_background">#FF05070F</color>
 </resources>
