@@ -6,18 +6,14 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -29,54 +25,34 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.text.style.TextAlign
 import com.andres.smarttuner.ui.theme.TunerTheme
 
-/** Estado actual con un punto de color que late mientras se espera sonido. */
+/**
+ * Estado actual del afinador, sin recuadro que lo envuelva: el color ya dice de qué habla y,
+ * mientras espera sonido, el texto late suavemente.
+ */
 @Composable
-fun StatusPill(
+fun StatusText(
     text: String,
     color: Color,
     modifier: Modifier = Modifier,
     idle: Boolean = false,
     pulsing: Boolean = false,
 ) {
-    val spacing = TunerTheme.spacing
-    Surface(
-        modifier = modifier,
-        shape = TunerTheme.shapes.pill,
-        color = color.copy(alpha = 0.14f),
-        border = BorderStroke(TunerTheme.sizes.border, color.copy(alpha = 0.45f)),
-    ) {
-        Row(
-            Modifier.padding(horizontal = spacing.lg + spacing.xxs, vertical = spacing.sm),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            PulsingDot(color, pulsing)
-            Spacer(Modifier.width(spacing.md))
-            Text(
-                text = text,
-                color = if (idle) TunerTheme.colors.textMuted else color,
-                style = TunerTheme.typography.status,
-            )
-        }
-    }
-}
-
-@Composable
-private fun PulsingDot(color: Color, pulsing: Boolean) {
     val transition = rememberInfiniteTransition(label = "pulse")
     val pulse by transition.animateFloat(
-        initialValue = 0.25f,
+        initialValue = 0.45f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(tween(800), RepeatMode.Reverse),
         label = "pulseAlpha",
     )
-    Box(
-        Modifier
-            .size(TunerTheme.sizes.statusDot)
-            .graphicsLayer { alpha = if (pulsing) pulse else 1f }
-            .clip(TunerTheme.shapes.pill)
-            .background(color),
+    Text(
+        text = text,
+        color = if (idle) TunerTheme.colors.textMuted else color,
+        style = TunerTheme.typography.status,
+        textAlign = TextAlign.Center,
+        modifier = modifier.graphicsLayer { alpha = if (pulsing) pulse else 1f },
     )
 }
 
