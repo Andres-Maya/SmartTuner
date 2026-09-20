@@ -21,6 +21,8 @@ class MainActivity : ComponentActivity() {
     private val viewModel: TunerViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Sale de la pantalla de carga y deja el tema normal antes de dibujar.
+        setTheme(R.style.Theme_SmartTuner)
         super.onCreate(savedInstanceState)
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),

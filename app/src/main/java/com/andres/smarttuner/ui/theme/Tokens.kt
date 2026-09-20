@@ -92,6 +92,8 @@ data class TunerSizes(
     val iconSmall: Dp = 24.dp,
     val iconMedium: Dp = 34.dp,
     val iconLarge: Dp = 84.dp,
+    /** Logo junto al nombre de la app. */
+    val logo: Dp = 38.dp,
     val avatar: Dp = 56.dp,
     val statusDot: Dp = 8.dp,
     val progressBar: Dp = 6.dp,

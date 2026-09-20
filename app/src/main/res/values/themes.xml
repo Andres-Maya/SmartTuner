@@ -4,4 +4,12 @@
     <style name="Theme.SmartTuner" parent="android:Theme.Material.NoActionBar">
         <item name="android:windowBackground">@color/night</item>
     </style>
+
+    <!--
+        Pantalla de carga con el logo del tema por defecto. Esta version es para API 24-30;
+        en API 31+ la reemplaza values-v31 usando la pantalla de inicio del sistema.
+    -->
+    <style name="Theme.SmartTuner.Splash" parent="Theme.SmartTuner">
+        <item name="android:windowBackground">@drawable/splash_window</item>
+    </style>
 </resources>

@@ -66,6 +66,7 @@ import com.andres.smarttuner.tuner.TunerMode
 import com.andres.smarttuner.tuner.TunerUiState
 import com.andres.smarttuner.tuner.TunerViewModel
 import com.andres.smarttuner.tuner.TuningStatus
+import com.andres.smarttuner.ui.components.AppLogo
 import com.andres.smarttuner.ui.components.DisplayCell
 import com.andres.smarttuner.ui.components.GhostButton
 import com.andres.smarttuner.ui.components.IconCircleButton
@@ -259,9 +260,21 @@ private fun TopBar(
 ) {
     val colors = TunerTheme.colors
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        AppLogo(Modifier.size(TunerTheme.sizes.logo))
+        Spacer(Modifier.width(TunerTheme.spacing.sm))
         Column(Modifier.weight(1f)) {
-            Text(stringResource(R.string.app_name), color = colors.textPrimary, style = TunerTheme.typography.appTitle)
-            Text(stringResource(R.string.tuner_subtitle), color = colors.textMuted, style = TunerTheme.typography.caption)
+            Text(
+                text = stringResource(R.string.app_name),
+                color = colors.textPrimary,
+                style = TunerTheme.typography.appTitle,
+                maxLines = 1,
+            )
+            Text(
+                text = stringResource(R.string.tuner_subtitle),
+                color = colors.textMuted,
+                style = TunerTheme.typography.caption,
+                maxLines = 1,
+            )
         }
         SegmentedToggle(
             options = listOf(AccidentalStyle.SHARPS to "♯", AccidentalStyle.FLATS to "♭"),
