@@ -163,6 +163,20 @@ fun BackChevron(color: Color = TunerTheme.colors.textPrimary, size: Dp = 16.dp) 
     }
 }
 
+/** Triangulo de reproducir, para escuchar una cuerda. */
+@Composable
+fun PlayGlyph(color: Color = TunerTheme.colors.textPrimary, size: Dp = 11.dp) {
+    Canvas(Modifier.size(size)) {
+        val triangle = Path().apply {
+            moveTo(this@Canvas.size.width * 0.12f, 0f)
+            lineTo(this@Canvas.size.width, this@Canvas.size.height * 0.5f)
+            lineTo(this@Canvas.size.width * 0.12f, this@Canvas.size.height)
+            close()
+        }
+        drawPath(triangle, color)
+    }
+}
+
 /** Paleta de colores dibujada, para abrir el menu de apariencia. */
 @Composable
 fun PaletteIcon(color: Color = TunerTheme.colors.accent, size: Dp = 20.dp) {

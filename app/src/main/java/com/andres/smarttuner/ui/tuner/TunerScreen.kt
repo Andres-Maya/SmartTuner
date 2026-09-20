@@ -155,13 +155,19 @@ fun TunerRoute(viewModel: TunerViewModel) {
                     is TunerMode.InstrumentTuning -> InstrumentTuningScreen(
                         state = state,
                         instrument = mode.instrument,
+                        tuning = mode.tuning,
                         onBack = viewModel::closeInstrumentTuning,
                         onOpenAppearance = { showAppearance = true },
+                        onSelectString = viewModel::selectString,
+                        onPlayString = viewModel::playString,
+                        onStopString = viewModel::stopStringSound,
+                        onSelectTuning = viewModel::setTuning,
                     )
                 }
             }
             IdentificationSheet(
                 state = state.identification,
+                accidentalStyle = state.accidentalStyle,
                 onRetry = viewModel::identifyInstrument,
                 onAccept = viewModel::acceptIdentification,
                 onDismiss = viewModel::dismissIdentification,

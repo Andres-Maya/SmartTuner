@@ -18,13 +18,17 @@ import com.andres.smarttuner.ai.YamnetClassifier
 import com.andres.smarttuner.audio.AudioFrame
 import com.andres.smarttuner.audio.MicrophoneAudioSource
 import com.andres.smarttuner.audio.PitchResult
+import com.andres.smarttuner.audio.ReferenceTonePlayer
 import com.andres.smarttuner.music.AccidentalStyle
 import com.andres.smarttuner.music.Instrument
+import com.andres.smarttuner.music.InstrumentString
 import com.andres.smarttuner.music.MusicTheory
+import com.andres.smarttuner.music.Tuning
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -48,6 +52,7 @@ class TunerViewModel(application: Application) : AndroidViewModel(application) {
     private val audioSource = MicrophoneAudioSource(application)
     private val smoother = PitchSmoother()
     private val stringTracker = StringTuningTracker()
+    private val tonePlayer = ReferenceTonePlayer(application)
 
     private val _uiState = MutableStateFlow(TunerUiState())
     val uiState: StateFlow<TunerUiState> = _uiState.asStateFlow()
@@ -60,6 +65,7 @@ class TunerViewModel(application: Application) : AndroidViewModel(application) {
 
     private var listenJob: Job? = null
     private var identifyJob: Job? = null
+    private var referenceJob: Job? = null
     private var lastSignalAt = 0L
 
     @Volatile
@@ -96,6 +102,7 @@ class TunerViewModel(application: Application) : AndroidViewModel(application) {
     fun stopListening() {
         listenJob?.cancel()
         listenJob = null
+        stopStringSound()
         if (identifyJob?.isActive == true) dismissIdentification()
         smoother.reset()
         stringTracker.update(null)
@@ -139,22 +146,87 @@ class TunerViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Cierra el resultado y abre la afinación del instrumento elegido. La IA preselecciona el más
-     * probable, pero el usuario puede corregirla. Sin cuerdas (modo "Otro") solo cierra.
+     * Cierra el resultado y abre la afinación del instrumento elegido, con la variante que se
+     * haya escogido (6 o 7 cuerdas, bajo de 5…). La IA preselecciona el instrumento más probable,
+     * pero el usuario puede corregirlo. Sin cuerdas (modo "Otro") solo cierra.
      */
-    fun acceptIdentification(selected: Instrument?) {
+    fun acceptIdentification(selected: Instrument?, tuning: Tuning? = null) {
         val instrument = selected?.takeUnless { it.isChromatic }
 
         dismissIdentification()
         if (instrument != null) {
+            val chosen = tuning?.takeIf { it in instrument.tunings } ?: instrument.standardTuning
             stringTracker.reset()
-            _uiState.update { it.copy(mode = TunerMode.InstrumentTuning(instrument), tunedStrings = emptySet()) }
+            _uiState.update {
+                it.copy(
+                    mode = TunerMode.InstrumentTuning(instrument, chosen),
+                    tunedStrings = emptySet(),
+                    selectedString = null,
+                )
+            }
+        }
+    }
+
+    /** Cambia de variante sin salir de la pantalla: lo afinado hasta ahora ya no vale. */
+    fun setTuning(tuning: Tuning) {
+        val mode = _uiState.value.mode as? TunerMode.InstrumentTuning ?: return
+        if (mode.tuning == tuning) return
+        stringTracker.reset()
+        _uiState.update {
+            it.copy(
+                mode = mode.copy(tuning = tuning),
+                tunedStrings = emptySet(),
+                selectedString = null,
+            )
+        }
+    }
+
+    /**
+     * Fija la cuerda a afinar. Volver a tocar la misma la suelta y el afinador vuelve a
+     * detectar sola la más cercana.
+     */
+    fun selectString(number: Int?) {
+        // Corta la racha en curso pero conserva las cuerdas ya afinadas.
+        stringTracker.update(null)
+        _uiState.update {
+            it.copy(selectedString = number.takeIf { chosen -> chosen != it.selectedString })
+        }
+    }
+
+    /**
+     * Hace sonar una cuerda como referencia (ver assets/strings/README.md). Mientras suena,
+     * el afinador deja de escuchar: el micrófono oiría la propia referencia —que está afinada
+     * por definición— y marcaría la cuerda como lista sin que el instrumento haya sonado.
+     */
+    fun playString(string: InstrumentString) {
+        val state = _uiState.value
+        val instrument = (state.mode as? TunerMode.InstrumentTuning)?.instrument ?: return
+        tonePlayer.play(instrument, string, state.referenceA4)
+        referenceJob?.cancel()
+        referenceJob = viewModelScope.launch {
+            _uiState.update { it.copy(soundingString = string.number, hasSignal = false) }
+            while (tonePlayer.isSounding) delay(REFERENCE_POLL_MS)
+            smoother.reset()
+            _uiState.update { it.copy(soundingString = null) }
+        }
+    }
+
+    /** Corta la referencia: vuelve a escucharte al instante, sin esperar a que se apague. */
+    fun stopStringSound() {
+        referenceJob?.cancel()
+        referenceJob = null
+        tonePlayer.stop()
+        if (_uiState.value.soundingString != null) {
+            _uiState.update { it.copy(soundingString = null) }
         }
     }
 
     fun closeInstrumentTuning() {
         stringTracker.reset()
-        _uiState.update { it.copy(mode = TunerMode.Chromatic, tunedStrings = emptySet()) }
+        stopStringSound()
+        _uiState.update {
+            it.copy(mode = TunerMode.Chromatic, tunedStrings = emptySet(), selectedString = null)
+        }
     }
 
     private suspend fun runIdentification(): IdentificationOutcome {
@@ -259,6 +331,11 @@ class TunerViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun onPitch(result: PitchResult?) {
+        // Mientras suena la referencia el micrófono solo devuelve el eco de la propia app.
+        if (tonePlayer.isSounding) {
+            stringTracker.update(null)
+            return
+        }
         val now = SystemClock.elapsedRealtime()
         if (result == null || result.probability < MIN_PROBABILITY) {
             stringTracker.update(null)
@@ -277,8 +354,11 @@ class TunerViewModel(application: Application) : AndroidViewModel(application) {
         val frequency = MusicTheory.midiToFrequency(midi, reference)
 
         // Se calcula fuera de update {} porque el tracker tiene estado y update puede reintentar.
-        val tunedStrings = (current.mode as? TunerMode.InstrumentTuning)
-            ?.let { stringTracker.update(it.instrument.closestString(frequency, reference)) }
+        val tunedStrings = (current.mode as? TunerMode.InstrumentTuning)?.let { mode ->
+            val match = current.selectedString?.let { mode.tuning.match(it, frequency, reference) }
+                ?: mode.tuning.closestString(frequency, reference)
+            stringTracker.update(match)
+        }
 
         _uiState.update {
             it.copy(
@@ -293,6 +373,7 @@ class TunerViewModel(application: Application) : AndroidViewModel(application) {
 
     override fun onCleared() {
         stopListening()
+        tonePlayer.release()
         classifier?.close()
         classifier = null
     }
@@ -305,5 +386,6 @@ class TunerViewModel(application: Application) : AndroidViewModel(application) {
         const val IDENTIFY_TIMEOUT_MS = 12_000L
         const val CAPTURE_DIRECTORY = "captures"
         const val MAX_CAPTURES = 60
+        const val REFERENCE_POLL_MS = 80L
     }
 }

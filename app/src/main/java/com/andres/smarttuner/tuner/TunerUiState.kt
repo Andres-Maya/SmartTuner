@@ -6,6 +6,7 @@ import com.andres.smarttuner.music.Instrument
 import com.andres.smarttuner.music.MusicTheory
 import com.andres.smarttuner.music.NoteName
 import com.andres.smarttuner.music.StringMatch
+import com.andres.smarttuner.music.Tuning
 import kotlin.math.abs
 
 enum class TuningStatus { IDLE, FLAT, IN_TUNE, SHARP }
@@ -24,7 +25,8 @@ sealed interface IdentificationUiState {
 sealed interface TunerMode {
     data object Chromatic : TunerMode
 
-    data class InstrumentTuning(val instrument: Instrument) : TunerMode
+    /** [tuning] es la variante elegida: 6 o 7 cuerdas, bajo de 5, barítono… */
+    data class InstrumentTuning(val instrument: Instrument, val tuning: Tuning) : TunerMode
 }
 
 data class TunerUiState(
@@ -43,6 +45,13 @@ data class TunerUiState(
     val mode: TunerMode = TunerMode.Chromatic,
     /** Números de cuerda ya afinados en [TunerMode.InstrumentTuning]. */
     val tunedStrings: Set<Int> = emptySet(),
+    /** Cuerda elegida a mano; con `null` el afinador busca la más cercana. */
+    val selectedString: Int? = null,
+    /**
+     * Cuerda cuya referencia está sonando. Mientras suena, el micrófono se ignora: si no,
+     * la app se oiría a sí misma y daría la cuerda por afinada.
+     */
+    val soundingString: Int? = null,
 ) {
     val note: NoteName? get() = nearestMidi?.let { MusicTheory.noteName(it, accidentalStyle) }
 
@@ -61,12 +70,16 @@ data class TunerUiState(
             else -> TuningStatus.SHARP
         }
 
-    /** Cuerda más cercana a la última frecuencia; se conserva atenuada durante el silencio. */
+    /**
+     * Cuerda que se está afinando y su desviación; se conserva atenuada durante el silencio.
+     * Con una cuerda elegida a mano siempre se compara contra esa, aunque suene otra nota.
+     */
     val stringMatch: StringMatch?
-        get() = (mode as? TunerMode.InstrumentTuning)
-            ?.instrument
-            ?.takeIf { frequency > 0f }
-            ?.closestString(frequency, referenceA4)
+        get() {
+            val tuning = (mode as? TunerMode.InstrumentTuning)?.tuning ?: return null
+            return selectedString?.let { tuning.match(it, frequency, referenceA4) }
+                ?: tuning.closestString(frequency, referenceA4)
+        }
 
     companion object {
         const val IN_TUNE_CENTS = 5f
