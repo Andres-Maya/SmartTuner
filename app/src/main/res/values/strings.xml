@@ -60,8 +60,7 @@
     <string name="tuning_type_title">Tipo de %1$s</string>
     <string name="tuning_type_body">Elige cuántas cuerdas tiene o en qué afinación está.</string>
     <string name="tuning_type_change">Cambiar el tipo de instrumento</string>
-    <string name="tuning_select_string">Afinar la cuerda %1$d</string>
-    <string name="tuning_play_string">Escuchar la cuerda %1$d</string>
+    <string name="tuning_select_string">Afinar y escuchar la cuerda %1$d</string>
     <string name="tuning_string_sounding">Sonando la cuerda %1$d · no te escucho</string>
     <string name="tuning_string_selected">Afinando la cuerda %1$d · tócala otra vez para soltarla</string>
     <string name="tuning_all_done">¡Instrumento afinado!</string>

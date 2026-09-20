@@ -159,8 +159,6 @@ fun TunerRoute(viewModel: TunerViewModel) {
                         onBack = viewModel::closeInstrumentTuning,
                         onOpenAppearance = { showAppearance = true },
                         onSelectString = viewModel::selectString,
-                        onPlayString = viewModel::playString,
-                        onStopString = viewModel::stopStringSound,
                         onSelectTuning = viewModel::setTuning,
                     )
                 }
