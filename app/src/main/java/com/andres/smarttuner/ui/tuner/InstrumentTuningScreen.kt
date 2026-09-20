@@ -292,9 +292,12 @@ private fun StringCard(
     val shape = TunerTheme.shapes.tile
     val borderColor by animateColorAsState(
         targetValue = when {
+            // Mientras suena manda el color del afinador: es lo que estás mirando.
             isActive -> activeColor
+            // Afinada va antes que elegida: la marca verde no se pierde al dejar de tocar
+            // una cuerda que sigue seleccionada, que es lo normal al afinarla.
+            isTuned -> colors.inTune
             isSelected -> colors.accent
-            isTuned -> colors.inTune.copy(alpha = 0.6f)
             else -> Color.Transparent
         },
         label = "stringBorder",
@@ -364,6 +367,15 @@ private fun StringCard(
             .padding(vertical = TunerTheme.spacing.sm),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        // Franja de arriba: señala la cuerda elegida sin disputarle el color a la marca de
+        // afinada. Ocupa sitio siempre, para que la tarjeta no dé un salto al elegirla.
+        Box(
+            Modifier
+                .padding(bottom = TunerTheme.spacing.xxs)
+                .size(width = 16.dp, height = 3.dp)
+                .clip(TunerTheme.shapes.pill)
+                .background(if (isSelected) colors.accent else Color.Transparent),
+        )
         Text(
             text = string.number.toString(),
             color = when {
