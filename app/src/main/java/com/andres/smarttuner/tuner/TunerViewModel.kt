@@ -182,14 +182,23 @@ class TunerViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Fija la cuerda a afinar. Volver a tocar la misma la suelta y el afinador vuelve a
-     * detectar sola la más cercana.
+     * Fija la cuerda a afinar y la hace sonar como referencia. Volver a tocar la misma la
+     * suelta, calla el audio y el afinador vuelve a detectar sola la más cercana.
      */
-    fun selectString(number: Int?) {
+    fun selectString(number: Int) {
+        val state = _uiState.value
+        val releasing = state.selectedString == number
         // Corta la racha en curso pero conserva las cuerdas ya afinadas.
         stringTracker.update(null)
-        _uiState.update {
-            it.copy(selectedString = number.takeIf { chosen -> chosen != it.selectedString })
+        _uiState.update { it.copy(selectedString = if (releasing) null else number) }
+        if (releasing) {
+            stopStringSound()
+        } else {
+            (state.mode as? TunerMode.InstrumentTuning)
+                ?.tuning
+                ?.strings
+                ?.firstOrNull { it.number == number }
+                ?.let(::playReference)
         }
     }
 
@@ -198,7 +207,7 @@ class TunerViewModel(application: Application) : AndroidViewModel(application) {
      * el afinador deja de escuchar: el micrófono oiría la propia referencia —que está afinada
      * por definición— y marcaría la cuerda como lista sin que el instrumento haya sonado.
      */
-    fun playString(string: InstrumentString) {
+    private fun playReference(string: InstrumentString) {
         val state = _uiState.value
         val instrument = (state.mode as? TunerMode.InstrumentTuning)?.instrument ?: return
         tonePlayer.play(instrument, string, state.referenceA4)

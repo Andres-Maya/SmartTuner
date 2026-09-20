@@ -60,7 +60,6 @@ import com.andres.smarttuner.tuner.TunerMode
 import com.andres.smarttuner.tuner.TunerUiState
 import com.andres.smarttuner.ui.components.BackChevron
 import com.andres.smarttuner.ui.components.IconCircleButton
-import com.andres.smarttuner.ui.components.PlayGlyph
 import com.andres.smarttuner.ui.components.ScreenColumn
 import com.andres.smarttuner.ui.components.StatusText
 import com.andres.smarttuner.ui.theme.SmartTunerTheme
@@ -83,8 +82,6 @@ fun InstrumentTuningScreen(
     onBack: () -> Unit,
     onOpenAppearance: () -> Unit,
     onSelectString: (Int) -> Unit,
-    onPlayString: (InstrumentString) -> Unit,
-    onStopString: () -> Unit,
     onSelectTuning: (Tuning) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -167,10 +164,7 @@ fun InstrumentTuningScreen(
                     activeColor = color,
                     style = state.accidentalStyle,
                     referenceA4 = state.referenceA4,
-                    isSounding = sounding == string.number,
                     onSelect = { onSelectString(string.number) },
-                    // Tocar el botón de la que ya suena la corta y te devuelve el micrófono.
-                    onPlay = { if (sounding == string.number) onStopString() else onPlayString(string) },
                     modifier = Modifier.weight(1f),
                 )
             }
@@ -276,7 +270,7 @@ private fun TuningChip(name: String, onClick: () -> Unit) {
 }
 
 /**
- * Tarjeta de una cuerda. Se toca para elegir cuál afinar y trae un botón para escucharla.
+ * Tarjeta de una cuerda. Se toca para elegir cuál afinar, y al elegirla suena como referencia.
  * Mientras te acercas a la afinación late cada vez más rápido y con más brillo; al quedar
  * afinada lanza una onda que se expande desde la tarjeta.
  */
@@ -286,13 +280,11 @@ private fun StringCard(
     isActive: Boolean,
     isSelected: Boolean,
     isTuned: Boolean,
-    isSounding: Boolean,
     cents: Float,
     activeColor: Color,
     style: AccidentalStyle,
     referenceA4: Float,
     onSelect: () -> Unit,
-    onPlay: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colors = TunerTheme.colors
@@ -389,14 +381,6 @@ private fun StringCard(
             style = typography.tiny,
             maxLines = 1,
         )
-        Spacer(Modifier.height(TunerTheme.spacing.xs))
-        IconCircleButton(
-            onClick = onPlay,
-            contentDescription = stringResource(R.string.tuning_play_string, string.number),
-            size = TunerTheme.sizes.iconSmall,
-        ) {
-            PlayGlyph(color = if (isSounding || isSelected) colors.accent else colors.textPrimary)
-        }
     }
 }
 
@@ -452,8 +436,6 @@ private fun InstrumentTuningScreenPreview() {
             onBack = {},
             onOpenAppearance = {},
             onSelectString = {},
-            onPlayString = {},
-            onStopString = {},
             onSelectTuning = {},
         )
     }
