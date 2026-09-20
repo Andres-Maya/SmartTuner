@@ -62,7 +62,7 @@ import com.andres.smarttuner.ui.components.BackChevron
 import com.andres.smarttuner.ui.components.IconCircleButton
 import com.andres.smarttuner.ui.components.PlayGlyph
 import com.andres.smarttuner.ui.components.ScreenColumn
-import com.andres.smarttuner.ui.components.StatusPill
+import com.andres.smarttuner.ui.components.StatusText
 import com.andres.smarttuner.ui.theme.SmartTunerTheme
 import com.andres.smarttuner.ui.theme.TunerTheme
 import java.util.Locale
@@ -146,7 +146,7 @@ fun InstrumentTuningScreen(
             target = match?.string?.frequency(state.referenceA4)?.let(::formatHz) ?: EMPTY_HZ,
         )
         Spacer(Modifier.height(spacing.md))
-        StatusPill(
+        StatusText(
             // Mientras suena la referencia el estado no habla de afinación, así que va en el
             // color del tema y no en el del afinador.
             text = statusText,

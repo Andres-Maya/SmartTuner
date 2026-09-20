@@ -78,7 +78,7 @@ import com.andres.smarttuner.ui.components.SegmentAccidental
 import com.andres.smarttuner.ui.components.SegmentText
 import com.andres.smarttuner.ui.components.SegmentedToggle
 import com.andres.smarttuner.ui.components.StatRow
-import com.andres.smarttuner.ui.components.StatusPill
+import com.andres.smarttuner.ui.components.StatusText
 import com.andres.smarttuner.ui.components.Stepper
 import com.andres.smarttuner.ui.theme.AppearanceSheet
 import com.andres.smarttuner.ui.theme.SmartTunerTheme
@@ -234,7 +234,7 @@ fun TunerScreen(
             target = if (state.nearestMidi != null) formatHz(state.targetFrequency) else EMPTY_HZ,
         )
         Spacer(Modifier.height(spacing.md))
-        StatusPill(
+        StatusText(
             text = chromaticStatusText(state),
             color = color,
             idle = idle,

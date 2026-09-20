@@ -138,8 +138,8 @@ private fun DesignSystemCatalog() {
             }
 
             CatalogSection("Indicadores") {
-                StatusPill("¡Afinado!", colors.inTune)
-                StatusPill("Esperando sonido…", colors.textMuted, idle = true, pulsing = true)
+                StatusText("¡Afinado!", colors.inTune)
+                StatusText("Esperando sonido…", colors.textMuted, idle = true, pulsing = true)
                 Row(horizontalArrangement = Arrangement.spacedBy(spacing.sm)) {
                     Badge("82% · confianza alta", colors.inTune)
                     Badge("35%", colors.outOfTune)
