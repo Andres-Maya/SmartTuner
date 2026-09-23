@@ -313,6 +313,8 @@ private fun StringCard(
         label = "stringBorder",
     )
     val scale by animateFloatAsState(if (isActive) 1.08f else 1f, label = "stringScale")
+    // En el modo claro las cuerdas van sueltas sobre el papel, sin recuadro que las encierre.
+    val boxed = TunerTheme.appearance.mode.isDark
 
     // 0 lejos, 1 justo en el centro: manda en la velocidad y el brillo del latido.
     val proximity = if (isActive && !isTuned) (1f - (abs(cents) / 50f).coerceIn(0f, 1f)) else 0f
@@ -342,19 +344,30 @@ private fun StringCard(
                         size = Size(size.width + spread * 2f, size.height + spread * 2f),
                     )
                 }
-                // Onda de confirmación: dos anillos que se expanden y se apagan.
+                // Onda de confirmación: dos anillos que se expanden y se apagan. Siguen la
+                // forma de lo que hay debajo: la tarjeta en oscuro, la nota suelta en claro.
                 if (wave.value > 0f && wave.value < 1f) {
                     repeat(RINGS) { ring ->
                         val progress = (wave.value - ring * 0.2f) / (1f - ring * 0.2f)
                         if (progress <= 0f) return@repeat
-                        val spread = progress * 22.dp.toPx()
-                        drawRoundRect(
-                            color = colors.inTune.copy(alpha = (1f - progress) * 0.55f),
-                            topLeft = Offset(-spread, -spread),
-                            size = Size(size.width + spread * 2f, size.height + spread * 2f),
-                            cornerRadius = CornerRadius(corner + spread),
-                            style = Stroke(2.dp.toPx()),
-                        )
+                        val ink = colors.inTune.copy(alpha = (1f - progress) * 0.55f)
+                        if (boxed) {
+                            val spread = progress * 22.dp.toPx()
+                            drawRoundRect(
+                                color = ink,
+                                topLeft = Offset(-spread, -spread),
+                                size = Size(size.width + spread * 2f, size.height + spread * 2f),
+                                cornerRadius = CornerRadius(corner + spread),
+                                style = Stroke(2.dp.toPx()),
+                            )
+                        } else {
+                            drawCircle(
+                                color = ink,
+                                radius = size.minDimension * (0.42f + 0.9f * progress),
+                                center = center,
+                                style = Stroke(1.6.dp.toPx()),
+                            )
+                        }
                     }
                 }
             }
@@ -364,15 +377,22 @@ private fun StringCard(
                 scaleX = scale * breath
                 scaleY = scale * breath
             }
-            .clip(shape)
-            .background(
-                when {
-                    isTuned -> colors.inTune.copy(alpha = 0.12f)
-                    isSelected -> colors.accent.copy(alpha = 0.12f)
-                    else -> colors.surface
+            .then(
+                if (boxed) {
+                    Modifier
+                        .clip(shape)
+                        .background(
+                            when {
+                                isTuned -> colors.inTune.copy(alpha = 0.12f)
+                                isSelected -> colors.accent.copy(alpha = 0.12f)
+                                else -> colors.surface
+                            },
+                        )
+                        .border(TunerTheme.sizes.borderStrong, borderColor, shape)
+                } else {
+                    Modifier
                 },
             )
-            .border(TunerTheme.sizes.borderStrong, borderColor, shape)
             .selectableCard(isSelected, string.number, onSelect)
             .padding(vertical = TunerTheme.spacing.sm),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -396,7 +416,19 @@ private fun StringCard(
             },
             style = typography.overline,
         )
-        Text(string.note(style).label, color = colors.textPrimary, style = typography.noteLabel, maxLines = 1)
+        Text(
+            text = string.note(style).label,
+            // Sin caja detrás, el color de la nota es lo que cuenta en qué estado está.
+            color = when {
+                boxed -> colors.textPrimary
+                isTuned -> colors.inTune
+                isActive -> activeColor
+                isSelected -> colors.accent
+                else -> colors.textPrimary
+            },
+            style = typography.noteLabel,
+            maxLines = 1,
+        )
         Text(
             text = String.format(Locale.US, "%.1f", string.frequency(referenceA4)),
             color = colors.textMuted,
