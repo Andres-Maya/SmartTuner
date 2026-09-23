@@ -29,6 +29,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.andres.smarttuner.ui.theme.SmartTunerTheme
+import com.andres.smarttuner.ui.theme.ThemeMode
 import com.andres.smarttuner.ui.theme.TunerTheme
 import com.andres.smarttuner.ui.tuner.LedTuningArc
 
@@ -36,10 +37,17 @@ import com.andres.smarttuner.ui.tuner.LedTuningArc
  * Catálogo del sistema de diseño. Ábrelo en la vista previa de Android Studio para ver
  * todos los tokens y componentes juntos antes de usarlos en una pantalla.
  */
-@Preview(name = "Sistema de diseño", showBackground = true, backgroundColor = 0xFF090D1C, widthDp = 360, heightDp = 1800)
+@Preview(name = "Sistema de diseño · oscuro", showBackground = true, backgroundColor = 0xFF090D1C, widthDp = 360, heightDp = 1800)
 @Composable
-private fun DesignSystemCatalog() {
-    SmartTunerTheme {
+private fun DesignSystemCatalogDark() = DesignSystemCatalog(ThemeMode.DARK)
+
+@Preview(name = "Sistema de diseño · claro", showBackground = true, backgroundColor = 0xFFF1F0EB, widthDp = 360, heightDp = 1800)
+@Composable
+private fun DesignSystemCatalogLight() = DesignSystemCatalog(ThemeMode.LIGHT)
+
+@Composable
+private fun DesignSystemCatalog(mode: ThemeMode) {
+    SmartTunerTheme(mode) {
         val colors = TunerTheme.colors
         val spacing = TunerTheme.spacing
         val typography = TunerTheme.typography
@@ -133,7 +141,8 @@ private fun DesignSystemCatalog() {
                 }
                 Stepper("La 440", onDecrement = {}, onIncrement = {}, decrementDescription = "−", incrementDescription = "+")
                 Row(horizontalArrangement = Arrangement.spacedBy(spacing.md)) {
-                    IconCircleButton(onClick = {}, contentDescription = "Apariencia") { PaletteIcon() }
+                    IconCircleButton(onClick = {}, contentDescription = "Modo claro") { ThemeModeIcon(dark = true) }
+                    IconCircleButton(onClick = {}, contentDescription = "Modo oscuro") { ThemeModeIcon(dark = false) }
                 }
             }
 

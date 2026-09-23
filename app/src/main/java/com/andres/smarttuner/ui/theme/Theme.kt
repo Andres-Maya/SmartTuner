@@ -4,6 +4,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
@@ -35,35 +36,35 @@ object TunerTheme {
     val typography: TunerTypography
         @Composable @ReadOnlyComposable get() = LocalTunerTypography.current
 
-    /** Tema de color activo y cómo cambiarlo desde cualquier pantalla. */
-    val palettes: ThemeController
+    /** Aspecto activo (claro u oscuro) y cómo alternarlo desde cualquier pantalla. */
+    val appearance: ThemeController
         @Composable @ReadOnlyComposable get() = LocalThemeController.current
 }
 
-/** Permite a cualquier pantalla leer el tema elegido y cambiarlo. */
+/** Permite a cualquier pantalla saber si está en claro u oscuro y cambiarlo. */
 @Immutable
 class ThemeController(
-    val palette: ThemePalette,
-    val select: (ThemePalette) -> Unit,
+    val mode: ThemeMode,
+    val toggle: () -> Unit,
 )
 
-internal val LocalThemeController = staticCompositionLocalOf { ThemeController(ThemePalette.Default) {} }
+internal val LocalThemeController = staticCompositionLocalOf { ThemeController(ThemeMode.DARK) {} }
 
 /**
- * El afinador usa siempre un tema oscuro: mejor contraste para los colores de afinación.
- * [palette] elige el acento; [onSelectPalette] recibe el cambio desde el menú de apariencia.
+ * [mode] elige entre el modo oscuro (neón lima sobre tinta) y el claro (papel crema y
+ * tinta marrón); [onToggleMode] recibe el cambio desde el botón de la barra superior.
  */
 @Composable
 fun SmartTunerTheme(
-    palette: ThemePalette = ThemePalette.Default,
-    onSelectPalette: (ThemePalette) -> Unit = {},
+    mode: ThemeMode = ThemeMode.DARK,
+    onToggleMode: () -> Unit = {},
     content: @Composable () -> Unit,
 ) {
-    val colors = palette.colors
+    val colors = mode.colors
     val typography = TunerTypography()
 
     CompositionLocalProvider(
-        LocalThemeController provides ThemeController(palette, onSelectPalette),
+        LocalThemeController provides ThemeController(mode, onToggleMode),
         LocalTunerColors provides colors,
         LocalTunerSpacing provides TunerSpacing(),
         LocalTunerSizes provides TunerSizes(),
@@ -71,7 +72,7 @@ fun SmartTunerTheme(
         LocalTunerTypography provides typography,
     ) {
         MaterialTheme(
-            colorScheme = colors.toMaterialColorScheme(),
+            colorScheme = colors.toMaterialColorScheme(mode.isDark),
             typography = typography.toMaterialTypography(),
             shapes = MaterialShapes,
             content = content,
@@ -79,19 +80,35 @@ fun SmartTunerTheme(
     }
 }
 
-private fun TunerColors.toMaterialColorScheme() = darkColorScheme(
-    primary = accent,
-    onPrimary = onAccent,
-    secondary = inTune,
-    tertiary = nearlyInTune,
-    error = outOfTune,
-    background = background,
-    onBackground = textPrimary,
-    surface = surface,
-    onSurface = textPrimary,
-    surfaceVariant = surfaceHigh,
-    onSurfaceVariant = textMuted,
-)
+private fun TunerColors.toMaterialColorScheme(dark: Boolean) = if (dark) {
+    darkColorScheme(
+        primary = accent,
+        onPrimary = onAccent,
+        secondary = inTune,
+        tertiary = nearlyInTune,
+        error = outOfTune,
+        background = background,
+        onBackground = textPrimary,
+        surface = surface,
+        onSurface = textPrimary,
+        surfaceVariant = surfaceHigh,
+        onSurfaceVariant = textMuted,
+    )
+} else {
+    lightColorScheme(
+        primary = accent,
+        onPrimary = onAccent,
+        secondary = inTune,
+        tertiary = nearlyInTune,
+        error = outOfTune,
+        background = background,
+        onBackground = textPrimary,
+        surface = surface,
+        onSurface = textPrimary,
+        surfaceVariant = surfaceHigh,
+        onSurfaceVariant = textMuted,
+    )
+}
 
 private val MaterialShapes = Shapes(
     small = RoundedCornerShape(12.dp),

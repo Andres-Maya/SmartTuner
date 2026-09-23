@@ -48,22 +48,31 @@ fun InstrumentIcon(
 }
 
 /**
- * El instrumento dibujado como un tubo de neón del color del tema. Al tocarlo da una vuelta
- * rápida, igual que el logo de la app.
+ * El instrumento en grande: tubo de neón en el modo oscuro y dibujo a trazo en el claro,
+ * siempre del color del tema. Al tocarlo da una vuelta rápida, igual que el logo.
  */
 @Composable
-fun NeonInstrumentIcon(
+fun InstrumentGlyph(
     instrument: Instrument?,
     contentDescription: String?,
     modifier: Modifier = Modifier,
     tint: Color = TunerTheme.colors.accent,
 ) {
-    Image(
-        painter = painterResource(instrument.neonIcon),
-        contentDescription = contentDescription,
-        colorFilter = ColorFilter.tint(tint),
-        modifier = modifier.spinOnTap(contentDescription),
-    )
+    if (TunerTheme.appearance.mode.isDark) {
+        Image(
+            painter = painterResource(instrument.neonIcon),
+            contentDescription = contentDescription,
+            colorFilter = ColorFilter.tint(tint),
+            modifier = modifier.spinOnTap(contentDescription),
+        )
+    } else {
+        InstrumentIcon(
+            instrument = instrument,
+            contentDescription = contentDescription,
+            modifier = modifier.spinOnTap(contentDescription),
+            tint = tint,
+        )
+    }
 }
 
 private val Instrument.iconAsset: String

@@ -36,6 +36,11 @@ data class TunerColors(
     val display: Color,
     /** Bisel del visor. */
     val displayFrame: Color,
+    /**
+     * Cuánto brillan los elementos encendidos (visor, luces, halos): 1 en el modo oscuro,
+     * 0 en el claro, donde un halo sobre papel solo ensucia el dibujo.
+     */
+    val glow: Float,
 ) {
     /** Fondo de pantalla completa. */
     val screenBrush: Brush = Brush.verticalGradient(listOf(surface, background, backgroundDeep))
@@ -44,6 +49,7 @@ data class TunerColors(
     val accentBrush: Brush = Brush.horizontalGradient(listOf(accent, accentAlt))
 }
 
+/** Neón lima sobre tinta, a juego con el logo y el icono de la app. */
 val DarkTunerColors = TunerColors(
     background = Palette.Ink900,
     backgroundDeep = Palette.Ink950,
@@ -51,8 +57,8 @@ val DarkTunerColors = TunerColors(
     surfaceHigh = Palette.Ink700,
     textPrimary = Palette.Mist50,
     textMuted = Palette.Mist400,
-    accent = Palette.Periwinkle400,
-    accentAlt = Palette.Lavender400,
+    accent = Palette.Lime400,
+    accentAlt = Palette.Spring400,
     onAccent = Palette.Ink950,
     inTune = Palette.Mint400,
     nearlyInTune = Palette.Amber300,
@@ -62,6 +68,30 @@ val DarkTunerColors = TunerColors(
     staffLine = Palette.White.copy(alpha = 0.40f),
     display = Palette.Ink950,
     displayFrame = Palette.White.copy(alpha = 0.07f),
+    glow = 1f,
+)
+
+/** Papel crema y tinta marrón: sin brillos, todo al trazo. */
+val LightTunerColors = TunerColors(
+    background = Palette.Sand100,
+    backgroundDeep = Palette.Sand200,
+    surface = Palette.Sand50,
+    surfaceHigh = Palette.Sand200,
+    textPrimary = Palette.Bark900,
+    textMuted = Palette.Clay400,
+    accent = Palette.Bark600,
+    accentAlt = Palette.Bark400,
+    onAccent = Palette.Sand50,
+    inTune = Palette.Moss600,
+    nearlyInTune = Palette.Honey600,
+    outOfTune = Palette.Brick600,
+    track = Palette.Bark900.copy(alpha = 0.10f),
+    tick = Palette.Bark900.copy(alpha = 0.26f),
+    staffLine = Palette.Bark900.copy(alpha = 0.35f),
+    // El "cristal" del visor va un punto más oscuro que el papel, como un LCD apagado.
+    display = Palette.Sand300,
+    displayFrame = Palette.Bark900.copy(alpha = 0.14f),
+    glow = 0f,
 )
 
 /** Escala de espacios en múltiplos de 4 dp. */
@@ -94,6 +124,10 @@ data class TunerSizes(
     val iconLarge: Dp = 84.dp,
     /** Logo junto al nombre de la app. */
     val logo: Dp = 38.dp,
+    /** Aro que rodea la nota escrita en el modo claro. */
+    val noteCircle: Dp = 168.dp,
+    /** Alto de la regleta con la aguja. */
+    val ruler: Dp = 96.dp,
     val avatar: Dp = 56.dp,
     val statusDot: Dp = 8.dp,
     val progressBar: Dp = 6.dp,
@@ -142,6 +176,11 @@ data class TunerTypography(
     val noteAccidental: TextStyle = TextStyle(fontSize = 42.sp, lineHeight = 44.sp, fontWeight = FontWeight.Bold),
     val noteOctave: TextStyle = TextStyle(fontSize = 32.sp, lineHeight = 34.sp, fontWeight = FontWeight.SemiBold),
     val notePlaceholder: TextStyle = TextStyle(fontSize = 96.sp, lineHeight = 100.sp, fontWeight = FontWeight.Light),
+    /** La nota escrita del modo claro: letra grande y, al lado, alteración y octava. */
+    val noteGlyph: TextStyle = TextStyle(fontFamily = DisplayFamily, fontSize = 86.sp, lineHeight = 90.sp),
+    val noteGlyphSmall: TextStyle = TextStyle(fontFamily = DisplayFamily, fontSize = 30.sp, lineHeight = 34.sp),
+    /** Los hercios que viajan bajo la aguja de la regleta. */
+    val rulerValue: TextStyle = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.Medium),
     val noteCaption: TextStyle = TextStyle(fontSize = 18.sp, fontWeight = FontWeight.Medium),
     val noteLabel: TextStyle = TextStyle(fontSize = 17.sp, fontWeight = FontWeight.SemiBold),
     val gaugeLabel: TextStyle = TextStyle(fontSize = 11.sp, fontWeight = FontWeight.Medium),

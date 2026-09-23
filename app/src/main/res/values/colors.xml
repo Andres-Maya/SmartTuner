@@ -3,6 +3,8 @@
     <color name="night">#FF090D1C</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+    <!-- Fondo de ventana antes de que Compose pinte: el crema del modo claro. -->
+    <color name="window_background">#FFF1F0EB</color>
     <!-- El neon esta dibujado sobre negro: el icono y la carga usan el mismo fondo. -->
     <color name="launcher_background">#FF000000</color>
     <color name="splash_background">#FF05070F</color>

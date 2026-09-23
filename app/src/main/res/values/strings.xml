@@ -65,9 +65,8 @@
     <string name="tuning_string_selected">Afinando la cuerda %1$d · tócala otra vez para soltarla</string>
     <string name="tuning_all_done">¡Instrumento afinado!</string>
 
-    <string name="appearance_open">Cambiar el color de la app</string>
-    <string name="appearance_title">Color de la app</string>
-    <string name="appearance_body">Elige el color principal: cambia los botones, el identificador, los iconos de los instrumentos y el visor.</string>
+    <string name="appearance_to_light">Cambiar al modo claro</string>
+    <string name="appearance_to_dark">Cambiar al modo oscuro</string>
     <string name="appearance_done">Listo</string>
 
     <string name="permission_title">Necesito tu micrófono</string>

@@ -247,7 +247,7 @@ private fun IdentifiedContent(
     Crossfade(targetState = selected, label = "selectedInstrument") { instrument ->
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
             val name = instrumentName(instrument, outcome.otherLabel)
-            NeonInstrumentIcon(
+            InstrumentGlyph(
                 instrument = instrument,
                 contentDescription = name,
                 modifier = Modifier.size(TunerTheme.sizes.iconLarge),
@@ -378,7 +378,7 @@ private fun CandidateOption(
 
 @Composable
 private fun UnknownContent(@StringRes title: Int, @StringRes body: Int) {
-    NeonInstrumentIcon(
+    InstrumentGlyph(
         instrument = null,
         contentDescription = stringResource(R.string.unknown_instrument),
         modifier = Modifier.size(TunerTheme.sizes.iconLarge),

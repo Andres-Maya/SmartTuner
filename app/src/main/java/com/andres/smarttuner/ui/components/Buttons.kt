@@ -24,8 +24,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathFillType
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -36,6 +38,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.andres.smarttuner.ui.theme.TunerTheme
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.sin
 
 /**
  * Acción principal: píldora con degradado. El texto se reduce solo si no cabe.
@@ -163,18 +168,38 @@ fun BackChevron(color: Color = TunerTheme.colors.textPrimary, size: Dp = 16.dp) 
     }
 }
 
-/** Paleta de colores dibujada, para abrir el menu de apariencia. */
+/**
+ * Sol o luna para alternar el aspecto. Dibuja el modo al que se va a cambiar: en oscuro
+ * enseña el sol, en claro la luna.
+ */
 @Composable
-fun PaletteIcon(color: Color = TunerTheme.colors.accent, size: Dp = 20.dp) {
+fun ThemeModeIcon(dark: Boolean, color: Color = TunerTheme.colors.accent, size: Dp = 20.dp) {
     Canvas(Modifier.size(size)) {
-        val radius = this.size.minDimension / 2f - 1.dp.toPx()
-        val dot = radius * 0.24f
-        drawCircle(color, radius, style = Stroke(width = 1.8.dp.toPx()))
-        drawCircle(color, dot, Offset(center.x - radius * 0.42f, center.y - radius * 0.18f))
-        drawCircle(color.copy(alpha = 0.75f), dot, Offset(center.x + radius * 0.02f, center.y - radius * 0.48f))
-        drawCircle(color.copy(alpha = 0.5f), dot, Offset(center.x + radius * 0.45f, center.y - radius * 0.02f))
-        // El hueco del pulgar de la paleta.
-        drawCircle(color.copy(alpha = 0.3f), dot * 1.3f, Offset(center.x + radius * 0.12f, center.y + radius * 0.46f))
+        val radius = this.size.minDimension / 2f
+        if (dark) {
+            drawCircle(color, radius * 0.52f)
+            repeat(8) { ray ->
+                val angle = (ray * 45f) * PI.toFloat() / 180f
+                val direction = Offset(cos(angle), sin(angle))
+                drawLine(
+                    color = color,
+                    start = center + direction * (radius * 0.72f),
+                    end = center + direction * radius,
+                    strokeWidth = 1.8.dp.toPx(),
+                    cap = StrokeCap.Round,
+                )
+            }
+        } else {
+            // Luna: el disco lleno menos otro desplazado, recortado por la regla par-impar.
+            drawPath(
+                path = Path().apply {
+                    fillType = PathFillType.EvenOdd
+                    addOval(Rect(center = center, radius = radius))
+                    addOval(Rect(center = center + Offset(radius * 0.5f, -radius * 0.42f), radius = radius * 0.92f))
+                },
+                color = color,
+            )
+        }
     }
 }
 
