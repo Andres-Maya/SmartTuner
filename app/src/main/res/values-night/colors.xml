@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Con el sistema en oscuro, el fondo de ventana es la tinta de la app. -->
+    <color name="window_background">#FF090D1C</color>
+</resources>

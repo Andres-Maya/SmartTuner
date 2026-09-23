@@ -94,8 +94,9 @@ fun LedTuningArc(
             return Offset(center.x + distance * cos(radians), center.y + distance * sin(radians))
         }
 
-        // Al quedar afinado, el aire alrededor de la luz central se tiñe.
-        if (inTune && hasSignal) {
+        // Al quedar afinado, el aire alrededor de la luz central se tiñe. Sobre papel no:
+        // un halo en el modo claro solo emborrona.
+        if (inTune && hasSignal && colors.glow > 0f) {
             val apex = positionOf(0f, radius - length / 2f)
             drawCircle(
                 brush = Brush.radialGradient(
@@ -138,6 +139,7 @@ fun LedTuningArc(
                 offColor = colors.track,
                 halo = step * 2.2f,
                 intensity = intensity,
+                glow = colors.glow,
             )
         }
     }
@@ -156,16 +158,17 @@ private fun DrawScope.drawArcLight(
     offColor: Color,
     halo: Float,
     intensity: Float,
+    glow: Float,
 ) {
     val topLeft = Offset(center.x - width / 2f, center.y - length / 2f)
     val size = Size(width, length)
     val corner = CornerRadius(width / 2f)
 
     // El halo es redondo: se dibuja sin girar, por debajo de la rayita.
-    if (intensity > 0.01f) {
+    if (intensity > 0.01f && glow > 0f) {
         drawCircle(
             brush = Brush.radialGradient(
-                colors = listOf(color.copy(alpha = 0.28f * intensity), Color.Transparent),
+                colors = listOf(color.copy(alpha = 0.28f * intensity * glow), Color.Transparent),
                 center = center,
                 radius = halo,
             ),
@@ -184,10 +187,11 @@ private fun DrawScope.drawArcLight(
             size = size,
             cornerRadius = corner,
         )
-        if (intensity > 0.7f) {
+        // Núcleo blanco de la luz más fuerte, solo donde hay neón que encender.
+        if (intensity > 0.7f && glow > 0f) {
             val inset = width * 0.3f
             drawRoundRect(
-                color = Color.White.copy(alpha = (intensity - 0.7f) * 1.2f),
+                color = Color.White.copy(alpha = (intensity - 0.7f) * 1.2f * glow),
                 topLeft = Offset(topLeft.x + inset, topLeft.y + length * 0.14f),
                 size = Size(width - inset * 2f, length * 0.72f),
                 cornerRadius = corner,

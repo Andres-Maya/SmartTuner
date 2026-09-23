@@ -71,7 +71,7 @@ import com.andres.smarttuner.ui.components.DisplayCell
 import com.andres.smarttuner.ui.components.GhostButton
 import com.andres.smarttuner.ui.components.IconCircleButton
 import com.andres.smarttuner.ui.components.MessageBlock
-import com.andres.smarttuner.ui.components.PaletteIcon
+import com.andres.smarttuner.ui.components.ThemeModeIcon
 import com.andres.smarttuner.ui.components.PrimaryButton
 import com.andres.smarttuner.ui.components.ScreenColumn
 import com.andres.smarttuner.ui.components.SegmentAccidental
@@ -80,7 +80,6 @@ import com.andres.smarttuner.ui.components.SegmentedToggle
 import com.andres.smarttuner.ui.components.StatRow
 import com.andres.smarttuner.ui.components.StatusText
 import com.andres.smarttuner.ui.components.Stepper
-import com.andres.smarttuner.ui.theme.AppearanceSheet
 import com.andres.smarttuner.ui.theme.SmartTunerTheme
 import com.andres.smarttuner.ui.theme.TunerTheme
 import java.util.Locale
@@ -99,7 +98,6 @@ fun TunerRoute(viewModel: TunerViewModel) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var hasPermission by remember { mutableStateOf(context.hasRecordAudioPermission()) }
     var hasAsked by rememberSaveable { mutableStateOf(false) }
-    var showAppearance by rememberSaveable { mutableStateOf(false) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -150,14 +148,12 @@ fun TunerRoute(viewModel: TunerViewModel) {
                         onSelectAccidentalStyle = viewModel::setAccidentalStyle,
                         onChangeReference = viewModel::changeReference,
                         onIdentifyInstrument = viewModel::identifyInstrument,
-                        onOpenAppearance = { showAppearance = true },
                     )
                     is TunerMode.InstrumentTuning -> InstrumentTuningScreen(
                         state = state,
                         instrument = mode.instrument,
                         tuning = mode.tuning,
                         onBack = viewModel::closeInstrumentTuning,
-                        onOpenAppearance = { showAppearance = true },
                         onSelectString = viewModel::selectString,
                         onSelectTuning = viewModel::setTuning,
                     )
@@ -184,7 +180,6 @@ fun TunerRoute(viewModel: TunerViewModel) {
                 },
             )
         }
-        if (showAppearance) AppearanceSheet(onDismiss = { showAppearance = false })
     }
 }
 
@@ -194,7 +189,6 @@ fun TunerScreen(
     onSelectAccidentalStyle: (AccidentalStyle) -> Unit,
     onChangeReference: (Float) -> Unit,
     onIdentifyInstrument: () -> Unit,
-    onOpenAppearance: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val spacing = TunerTheme.spacing
@@ -210,26 +204,42 @@ fun TunerScreen(
     )
     val hasNote = state.hasSignal && state.nearestMidi != null
     val idle = state.status == TuningStatus.IDLE
+    // Cada modo tiene su visor: neón y siete segmentos en el oscuro, nota escrita y
+    // regleta en el claro.
+    val dark = TunerTheme.appearance.mode.isDark
 
     ScreenColumn(modifier) {
-        TopBar(state.accidentalStyle, onSelectAccidentalStyle, onOpenAppearance)
+        TopBar(state.accidentalStyle, onSelectAccidentalStyle)
         Spacer(Modifier.weight(1f))
-        TunerDial(
-            cents = animatedCents,
-            hasSignal = state.hasSignal,
-            inTune = state.status == TuningStatus.IN_TUNE,
-            note = state.note,
-            accidentalStyle = state.accidentalStyle,
-            color = color,
-            lowerNote = state.lowerNeighbor,
-            upperNote = state.upperNeighbor,
-            emptyLabel = stringResource(R.string.play_a_note),
-        )
+        if (dark) {
+            TunerDial(
+                cents = animatedCents,
+                hasSignal = state.hasSignal,
+                inTune = state.status == TuningStatus.IN_TUNE,
+                note = state.note,
+                accidentalStyle = state.accidentalStyle,
+                color = color,
+                lowerNote = state.lowerNeighbor,
+                upperNote = state.upperNeighbor,
+                emptyLabel = stringResource(R.string.play_a_note),
+            )
+        } else {
+            PaperDial(
+                cents = animatedCents,
+                frequency = state.frequency,
+                hasSignal = state.hasSignal,
+                inTune = state.status == TuningStatus.IN_TUNE,
+                note = state.note,
+                emptyLabel = stringResource(R.string.play_a_note),
+            )
+        }
         Spacer(Modifier.height(spacing.md))
         ReadingsRow(
             frequency = if (hasNote) formatHz(state.frequency) else EMPTY_HZ,
             cents = if (hasNote) formatCents(state.cents) else EMPTY_CENTS,
             target = if (state.nearestMidi != null) formatHz(state.targetFrequency) else EMPTY_HZ,
+            // En claro los hercios ya van bajo la aguja: repetirlos sobra.
+            showFrequency = dark,
         )
         Spacer(Modifier.height(spacing.md))
         StatusText(
@@ -239,8 +249,12 @@ fun TunerScreen(
             pulsing = idle && state.isListening,
         )
         Spacer(Modifier.weight(1f))
-        NoteStrip(state, color, Modifier.fillMaxWidth().height(64.dp))
-        Spacer(Modifier.height(spacing.md))
+        // El carrusel cromático se queda en el modo oscuro: en el claro ese papel lo hace
+        // la regleta, y dos reglas seguidas se estorban.
+        if (dark) {
+            NoteStrip(state, color, Modifier.fillMaxWidth().height(64.dp))
+            Spacer(Modifier.height(spacing.md))
+        }
         StaffCard(state, color)
         Spacer(Modifier.weight(1f))
         BottomBar(state, onIdentifyInstrument, onChangeReference)
@@ -260,7 +274,6 @@ private fun chromaticStatusText(state: TunerUiState): String = when {
 private fun TopBar(
     style: AccidentalStyle,
     onSelect: (AccidentalStyle) -> Unit,
-    onOpenAppearance: () -> Unit,
 ) {
     val colors = TunerTheme.colors
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -287,15 +300,21 @@ private fun TopBar(
             contentDescription = stringResource(R.string.toggle_accidentals),
         )
         Spacer(Modifier.width(TunerTheme.spacing.sm))
-        AppearanceButton(onOpenAppearance)
+        AppearanceButton()
     }
 }
 
-/** Abre el menú para cambiar el color de la app. */
+/** Alterna entre el modo claro y el oscuro. */
 @Composable
-internal fun AppearanceButton(onClick: () -> Unit) {
-    IconCircleButton(onClick = onClick, contentDescription = stringResource(R.string.appearance_open)) {
-        PaletteIcon()
+internal fun AppearanceButton() {
+    val appearance = TunerTheme.appearance
+    IconCircleButton(
+        onClick = appearance.toggle,
+        contentDescription = stringResource(
+            if (appearance.mode.isDark) R.string.appearance_to_light else R.string.appearance_to_dark,
+        ),
+    ) {
+        ThemeModeIcon(dark = appearance.mode.isDark)
     }
 }
 
@@ -371,8 +390,10 @@ private fun NoteDisplay(
     val colors = TunerTheme.colors
     val sizes = TunerTheme.sizes
     val typography = TunerTheme.typography
-    val glow by animateFloatAsState(if (hasSignal) 1f else 0.2f, tween(300), label = "noteGlow")
-    val halo by animateFloatAsState(if (inTune) 0.26f else 0.07f, tween(350), label = "noteHalo")
+    // Sin brillos en el modo claro: los segmentos van a trazo limpio sobre el papel.
+    val neon = colors.glow
+    val glow by animateFloatAsState(if (hasSignal) neon else 0.2f * neon, tween(300), label = "noteGlow")
+    val halo by animateFloatAsState((if (inTune) 0.26f else 0.07f) * neon, tween(350), label = "noteHalo")
     // Sin sonido el visor entero queda en reposo, atenuado.
     val letterColor = if (hasSignal) color else colors.textMuted.copy(alpha = 0.6f)
     val cellColor = if (hasSignal) colors.accent else colors.accent.copy(alpha = 0.55f)
@@ -449,13 +470,18 @@ private fun NeighborLabel(title: String, note: NoteName?, alignEnd: Boolean, mod
 }
 
 @Composable
-internal fun ReadingsRow(frequency: String, cents: String, target: String) {
+internal fun ReadingsRow(
+    frequency: String,
+    cents: String,
+    target: String,
+    showFrequency: Boolean = true,
+) {
     StatRow(
-        listOf(
-            stringResource(R.string.label_frequency) to frequency,
-            stringResource(R.string.label_cents) to cents,
-            stringResource(R.string.label_target) to target,
-        ),
+        buildList {
+            if (showFrequency) add(stringResource(R.string.label_frequency) to frequency)
+            add(stringResource(R.string.label_cents) to cents)
+            add(stringResource(R.string.label_target) to target)
+        },
     )
 }
 
@@ -558,7 +584,6 @@ private fun TunerScreenPreview() {
             onSelectAccidentalStyle = {},
             onChangeReference = {},
             onIdentifyInstrument = {},
-            onOpenAppearance = {},
         )
     }
 }

@@ -80,7 +80,6 @@ fun InstrumentTuningScreen(
     instrument: Instrument,
     tuning: Tuning,
     onBack: () -> Unit,
-    onOpenAppearance: () -> Unit,
     onSelectString: (Int) -> Unit,
     onSelectTuning: (Tuning) -> Unit,
     modifier: Modifier = Modifier,
@@ -94,6 +93,7 @@ fun InstrumentTuningScreen(
     val cents = match?.cents ?: 0f
     val inTune = active && abs(cents) <= TunerUiState.IN_TUNE_CENTS
     var showTunings by rememberSaveable { mutableStateOf(false) }
+    val dark = TunerTheme.appearance.mode.isDark
 
     val color by animateColorAsState(tuningColor(cents, active, colors), tween(250), label = "stringColor")
     val animatedCents by animateFloatAsState(
@@ -122,25 +122,36 @@ fun InstrumentTuningScreen(
             referenceA4 = state.referenceA4,
             onBack = onBack,
             onOpenTunings = { showTunings = true },
-            onOpenAppearance = onOpenAppearance,
         )
         Spacer(Modifier.weight(1f))
-        TunerDial(
-            cents = animatedCents,
-            hasSignal = active,
-            inTune = inTune,
-            note = match?.string?.note(state.accidentalStyle),
-            accidentalStyle = state.accidentalStyle,
-            color = color,
-            lowerNote = lowerString?.note(state.accidentalStyle),
-            upperNote = upperString?.note(state.accidentalStyle),
-            emptyLabel = stringResource(R.string.tuning_play_open_string),
-        )
+        if (dark) {
+            TunerDial(
+                cents = animatedCents,
+                hasSignal = active,
+                inTune = inTune,
+                note = match?.string?.note(state.accidentalStyle),
+                accidentalStyle = state.accidentalStyle,
+                color = color,
+                lowerNote = lowerString?.note(state.accidentalStyle),
+                upperNote = upperString?.note(state.accidentalStyle),
+                emptyLabel = stringResource(R.string.tuning_play_open_string),
+            )
+        } else {
+            PaperDial(
+                cents = animatedCents,
+                frequency = state.frequency,
+                hasSignal = active,
+                inTune = inTune,
+                note = match?.string?.note(state.accidentalStyle),
+                emptyLabel = stringResource(R.string.tuning_play_open_string),
+            )
+        }
         Spacer(Modifier.height(spacing.md))
         ReadingsRow(
             frequency = if (active) formatHz(state.frequency) else EMPTY_HZ,
             cents = if (active) formatCents(cents) else EMPTY_CENTS,
             target = match?.string?.frequency(state.referenceA4)?.let(::formatHz) ?: EMPTY_HZ,
+            showFrequency = dark,
         )
         Spacer(Modifier.height(spacing.md))
         StatusText(
@@ -212,7 +223,6 @@ private fun InstrumentHeader(
     referenceA4: Float,
     onBack: () -> Unit,
     onOpenTunings: () -> Unit,
-    onOpenAppearance: () -> Unit,
 ) {
     val colors = TunerTheme.colors
     val spacing = TunerTheme.spacing
@@ -222,7 +232,7 @@ private fun InstrumentHeader(
             BackChevron()
         }
         Spacer(Modifier.width(spacing.sm))
-        NeonInstrumentIcon(
+        InstrumentGlyph(
             instrument = instrument,
             contentDescription = instrument.displayName,
             modifier = Modifier.size(sizes.avatar),
@@ -246,7 +256,7 @@ private fun InstrumentHeader(
                 )
             }
         }
-        AppearanceButton(onOpenAppearance)
+        AppearanceButton()
     }
 }
 
@@ -319,7 +329,7 @@ private fun StringCard(
                 val corner = 16.dp.toPx()
                 // Aura que respira mientras la cuerda se acerca a su nota.
                 val pulse = sin(beat * 2f * PI.toFloat()) * 0.5f + 0.5f
-                val aura = proximity * (0.4f + 0.6f * pulse)
+                val aura = proximity * (0.4f + 0.6f * pulse) * colors.glow
                 if (aura > 0.01f) {
                     val spread = 12.dp.toPx()
                     drawRect(
@@ -446,7 +456,6 @@ private fun InstrumentTuningScreenPreview() {
             instrument = Instrument.GUITAR,
             tuning = Instrument.GUITAR.standardTuning,
             onBack = {},
-            onOpenAppearance = {},
             onSelectString = {},
             onSelectTuning = {},
         )
