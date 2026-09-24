@@ -27,7 +27,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.PathFillType
+import androidx.compose.ui.graphics.PathOperation
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -190,13 +190,15 @@ fun ThemeModeIcon(dark: Boolean, color: Color = TunerTheme.colors.accent, size: 
                 )
             }
         } else {
-            // Luna: el disco lleno menos otro desplazado, recortado por la regla par-impar.
+            // Luna: el disco menos otro desplazado. Tiene que ser una resta de verdad; con la
+            // regla par-impar se rellena además el trozo del segundo disco que sobresale del
+            // primero, y salen dos lunas en vez de una.
+            val disc = Path().apply { addOval(Rect(center = center, radius = radius)) }
+            val bite = Path().apply {
+                addOval(Rect(center = center + Offset(radius * 0.42f, -radius * 0.28f), radius = radius))
+            }
             drawPath(
-                path = Path().apply {
-                    fillType = PathFillType.EvenOdd
-                    addOval(Rect(center = center, radius = radius))
-                    addOval(Rect(center = center + Offset(radius * 0.5f, -radius * 0.42f), radius = radius * 0.92f))
-                },
+                path = Path().apply { op(disc, bite, PathOperation.Difference) },
                 color = color,
             )
         }
