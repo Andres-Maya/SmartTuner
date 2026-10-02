@@ -14,9 +14,11 @@ enum class TuningStatus { IDLE, FLAT, IN_TUNE, SHARP }
 sealed interface IdentificationUiState {
     data object Hidden : IdentificationUiState
 
-    data class Listening(val progress: Float) : IdentificationUiState
+    /** Escuchando sin límite de tiempo; [hearing] indica si ya ha llegado sonido que analizar. */
+    data class Listening(val hearing: Boolean) : IdentificationUiState
 
-    data class Finished(val outcome: IdentificationOutcome) : IdentificationUiState
+    /** Solo se termina con un instrumento reconocido: si no lo hay, se sigue escuchando. */
+    data class Finished(val outcome: IdentificationOutcome.Identified) : IdentificationUiState
 
     data object Failed : IdentificationUiState
 }

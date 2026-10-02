@@ -5,7 +5,6 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
@@ -64,6 +63,7 @@ import com.andres.smarttuner.ui.components.ProbabilityBar
 import com.andres.smarttuner.ui.components.SecondaryButton
 import com.andres.smarttuner.ui.components.SectionLabel
 import com.andres.smarttuner.ui.components.SelectableOption
+import com.andres.smarttuner.ui.components.StatusText
 import com.andres.smarttuner.ui.theme.TunerColors
 import com.andres.smarttuner.ui.theme.TunerTheme
 import kotlin.math.roundToInt
@@ -83,7 +83,7 @@ fun IdentificationSheet(
     val spacing = TunerTheme.spacing
 
     // La IA preselecciona el más probable; el usuario puede elegir otro de las opciones.
-    val identified = (state as? IdentificationUiState.Finished)?.outcome as? IdentificationOutcome.Identified
+    val identified = (state as? IdentificationUiState.Finished)?.outcome
     var selected by rememberSaveable(identified) { mutableStateOf(identified?.best?.instrument) }
     // La variante vuelve a la estándar cada vez que cambia el instrumento elegido.
     var tuning by remember(selected) { mutableStateOf(selected?.standardTuning) }
@@ -110,21 +110,15 @@ fun IdentificationSheet(
             ) { current ->
                 Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
                     when (current) {
-                        is IdentificationUiState.Listening -> ListeningContent(current.progress)
-                        is IdentificationUiState.Finished -> when (val outcome = current.outcome) {
-                            is IdentificationOutcome.Identified -> IdentifiedContent(
-                                outcome = outcome,
-                                selected = selected ?: outcome.best.instrument,
-                                tuning = tuning ?: outcome.best.instrument.standardTuning,
-                                accidentalStyle = accidentalStyle,
-                                onSelect = { selected = it },
-                                onSelectTuning = { tuning = it },
-                            )
-                            IdentificationOutcome.NoInstrument -> UnknownContent(
-                                title = R.string.identify_none_title,
-                                body = R.string.identify_none_body,
-                            )
-                        }
+                        is IdentificationUiState.Listening -> ListeningContent(current.hearing)
+                        is IdentificationUiState.Finished -> IdentifiedContent(
+                            outcome = current.outcome,
+                            selected = selected ?: current.outcome.best.instrument,
+                            tuning = tuning ?: current.outcome.best.instrument.standardTuning,
+                            accidentalStyle = accidentalStyle,
+                            onSelect = { selected = it },
+                            onSelectTuning = { tuning = it },
+                        )
                         IdentificationUiState.Failed -> UnknownContent(
                             title = R.string.identify_error_title,
                             body = R.string.identify_error_body,
@@ -169,12 +163,15 @@ fun IdentificationSheet(
     }
 }
 
+/**
+ * Escucha sin cuenta atrás: no hay porcentaje que llenar, solo las ondas y una línea que
+ * dice si ya llega sonido. Se queda así el tiempo que haga falta.
+ */
 @Composable
-private fun ListeningContent(progress: Float) {
+private fun ListeningContent(hearing: Boolean) {
     val colors = TunerTheme.colors
     val spacing = TunerTheme.spacing
     val typography = TunerTheme.typography
-    val animatedProgress by animateFloatAsState(progress, tween(150), label = "identifyProgress")
     val transition = rememberInfiniteTransition(label = "rings")
     val ringPhase by transition.animateFloat(
         initialValue = 0f,
@@ -213,17 +210,28 @@ private fun ListeningContent(progress: Float) {
                 .clip(TunerTheme.shapes.pill)
                 .background(colors.backgroundDeep),
         )
+        // Sin `progress` gira sin fin: indica que sigue escuchando, no cuánto falta.
         CircularProgressIndicator(
-            progress = { animatedProgress },
             modifier = Modifier.size(116.dp),
             color = colors.accent,
             trackColor = colors.surfaceHigh,
             strokeWidth = 6.dp,
             strokeCap = StrokeCap.Round,
         )
-        Text("${(animatedProgress * 100).roundToInt()}%", color = colors.textPrimary, style = typography.progress)
+        InstrumentGlyph(
+            instrument = null,
+            contentDescription = null,
+            modifier = Modifier.size(TunerTheme.sizes.avatar),
+        )
     }
     Spacer(Modifier.height(spacing.md))
+    StatusText(
+        text = stringResource(if (hearing) R.string.identify_hearing else R.string.identify_waiting),
+        color = colors.accent,
+        idle = !hearing,
+        pulsing = !hearing,
+    )
+    Spacer(Modifier.height(spacing.xs))
     Text(stringResource(R.string.identify_listening_footer), color = colors.textMuted, style = typography.footnote)
 }
 

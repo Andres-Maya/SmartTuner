@@ -34,11 +34,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
-import kotlinx.coroutines.flow.takeWhile
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -118,7 +118,7 @@ class TunerViewModel(application: Application) : AndroidViewModel(application) {
         startListening()
         if (listenJob?.isActive != true) return
 
-        _uiState.update { it.copy(identification = IdentificationUiState.Listening(progress = 0f)) }
+        _uiState.update { it.copy(identification = IdentificationUiState.Listening(hearing = false)) }
         identifyJob = viewModelScope.launch {
             val next = try {
                 IdentificationUiState.Finished(withContext(Dispatchers.Default) { runIdentification() })
@@ -231,7 +231,12 @@ class TunerViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private suspend fun runIdentification(): IdentificationOutcome {
+    /**
+     * Escucha sin reloj hasta reconocer un instrumento: el silencio no cuenta y, si lo que
+     * suena no es un instrumento, se descarta y se sigue escuchando. Solo termina con un
+     * resultado o cuando se cancela.
+     */
+    private suspend fun runIdentification(): IdentificationOutcome.Identified {
         val sampleRate = MicrophoneAudioSource.SAMPLE_RATE
         val yamnet = classifier ?: YamnetClassifier(getApplication()).also {
             // La primera inferencia es mucho más lenta: se hace con silencio antes de escuchar.
@@ -243,47 +248,60 @@ class TunerViewModel(application: Application) : AndroidViewModel(application) {
             headLoaded = true
             Log.i(TAG, head?.let { "Modelo propio cargado: ${it.labels}" } ?: "Sin modelo propio: solo YAMNet")
         }
-        val session = IdentificationSession(
+        fun newSession() = IdentificationSession(
             sampleRate = sampleRate,
             classify = { yamnet.classify(it, sampleRate) },
             head = head,
         )
         // En desarrollo se guarda cada escucha para comparar la app con el entrenamiento en el PC.
-        val capture = if (isDebuggable) AudioCapture(sampleRate) else null
+        fun newCapture() = if (isDebuggable) AudioCapture(sampleRate) else null
 
-        // Termina por segundos de audio analizado; el tope evita quedarse colgado si el micrófono se detiene.
-        withTimeoutOrNull(IDENTIFY_TIMEOUT_MS) {
-            audioFrames.takeWhile { session.acceptedSeconds < IDENTIFY_SECONDS }.collect { frame ->
+        var session = newSession()
+        var capture = newCapture()
+
+        val outcome = audioFrames
+            .mapNotNull { frame ->
                 val pitchMidi = frame.pitch
                     ?.takeIf { it.probability >= MIN_PROBABILITY }
                     ?.let { MusicTheory.frequencyToMidi(it.frequency) }
                 capture?.append(frame.samples)
                 session.accept(frame.samples, pitchMidi)
+                showHearing(session.analyzedWindows > 0)
 
-                val progress = session.acceptedSeconds / IDENTIFY_SECONDS
-                _uiState.update { state ->
-                    if (state.identification is IdentificationUiState.Listening) {
-                        state.copy(identification = IdentificationUiState.Listening(progress.coerceIn(0f, 1f)))
-                    } else {
-                        state
-                    }
+                // Decide con la misma cantidad de sonido que cuando la escucha duraba un tiempo fijo.
+                val enoughSound = session.analyzedWindows >= DECISION_WINDOWS
+                val identified = if (enoughSound) session.result() as? IdentificationOutcome.Identified else null
+                // Se empieza de cero si lo que sonó no era un instrumento, y también cada poco
+                // mientras no suena nada: así la captura de diagnóstico no se llena de silencio.
+                val onlySilence = session.analyzedWindows == 0 && session.acceptedSeconds >= SILENCE_RESTART_SECONDS
+                if (identified == null && (enoughSound || onlySilence)) {
+                    session = newSession()
+                    capture = newCapture()
                 }
+                identified
             }
-        }
-        val outcome = session.result()
+            .first()
         capture?.let { saveCapture(it, session, outcome) }
         if (Log.isLoggable(TAG, Log.DEBUG)) {
             val learned = session.headSummary.entries
                 .sortedByDescending { it.value }
                 .take(4)
                 .joinToString { "${it.key}=%.2f".format(it.value) }
-            val decision = (outcome as? IdentificationOutcome.Identified)?.candidates
-                ?.take(3)
-                ?.joinToString { "${it.instrument.datasetLabel}=%.2f".format(it.probability) }
-                ?: "sin instrumento"
+            val decision = outcome.candidates
+                .take(3)
+                .joinToString { "${it.instrument.datasetLabel}=%.2f".format(it.probability) }
             Log.d(TAG, "${session.analyzedWindows} ventanas · capa: $learned · decisión: $decision")
         }
         return outcome
+    }
+
+    /** Avisa a la hoja de si ya está llegando sonido, sin republicar el estado en cada bloque. */
+    private fun showHearing(hearing: Boolean) {
+        _uiState.update { state ->
+            val listening = state.identification as? IdentificationUiState.Listening
+            if (listening == null || listening.hearing == hearing) state
+            else state.copy(identification = IdentificationUiState.Listening(hearing))
+        }
     }
 
     private val isDebuggable: Boolean
@@ -293,16 +311,18 @@ class TunerViewModel(application: Application) : AndroidViewModel(application) {
      * Guarda el audio y los números de una escucha en
      * /sdcard/Android/data/com.andres.smarttuner/files/captures/ (ver ml/README.md).
      */
-    private fun saveCapture(capture: AudioCapture, session: IdentificationSession, outcome: IdentificationOutcome) {
+    private fun saveCapture(
+        capture: AudioCapture,
+        session: IdentificationSession,
+        outcome: IdentificationOutcome.Identified,
+    ) {
         val directory = getApplication<Application>().getExternalFilesDir(CAPTURE_DIRECTORY) ?: return
         val name = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
         runCatching {
             capture.writeWav(File(directory, "$name.wav"))
-            val decision = (outcome as? IdentificationOutcome.Identified)?.candidates?.let { candidates ->
-                JSONArray(candidates.map {
-                    JSONObject().put("instrument", it.instrument.datasetLabel).put("probability", it.probability.toDouble())
-                })
-            }
+            val decision = JSONArray(outcome.candidates.map {
+                JSONObject().put("instrument", it.instrument.datasetLabel).put("probability", it.probability.toDouble())
+            })
             val windows = JSONArray(session.windowDiagnostics.map { window ->
                 JSONObject()
                     .put("endSample", window.endSample)
@@ -317,7 +337,7 @@ class TunerViewModel(application: Application) : AndroidViewModel(application) {
                 .put("samples", capture.sampleCount)
                 .put("pitchesMidi", JSONArray(session.detectedPitches.map { it.toDouble() }))
                 .put("windows", windows)
-                .put("decision", decision ?: JSONObject.NULL)
+                .put("decision", decision)
             File(directory, "$name.json").writeText(report.toString())
             pruneCaptures(directory)
             Log.i(TAG, "Captura guardada: ${File(directory, "$name.wav").absolutePath}")
@@ -384,8 +404,9 @@ class TunerViewModel(application: Application) : AndroidViewModel(application) {
         const val TAG = "TunerViewModel"
         const val MIN_PROBABILITY = 0.85f
         const val SIGNAL_HOLD_MS = 500L
-        const val IDENTIFY_SECONDS = 4f
-        const val IDENTIFY_TIMEOUT_MS = 12_000L
+        /** Ventanas con sonido que hacen falta para decidir: las que cabían en 4 s seguidos. */
+        const val DECISION_WINDOWS = 7
+        const val SILENCE_RESTART_SECONDS = 5f
         const val CAPTURE_DIRECTORY = "captures"
         const val MAX_CAPTURES = 60
         const val REFERENCE_POLL_MS = 80L

@@ -167,7 +167,6 @@ data class TunerTypography(
     val buttonSmall: TextStyle = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.SemiBold),
     val status: TextStyle = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.SemiBold),
     val symbol: TextStyle = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.Bold),
-    val progress: TextStyle = TextStyle(fontSize = 24.sp, fontWeight = FontWeight.SemiBold),
     val noteLetter: TextStyle = TextStyle(fontSize = 104.sp, lineHeight = 104.sp, fontWeight = FontWeight.Bold),
     /** La nota escrita del modo claro: letra grande y, al lado, alteración y octava. */
     val noteGlyph: TextStyle = TextStyle(fontFamily = DisplayFamily, fontSize = 86.sp, lineHeight = 90.sp),

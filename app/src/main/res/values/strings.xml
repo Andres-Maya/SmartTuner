@@ -21,7 +21,9 @@
 
     <string name="identify_instrument">Identificar instrumento</string>
     <string name="identify_listening_title">Identificando instrumento</string>
-    <string name="identify_listening_body">Toca notas sueltas o cuerdas al aire cerca del micrófono durante unos segundos.</string>
+    <string name="identify_listening_body">Toca notas sueltas o cuerdas al aire cerca del micrófono. Sin prisa: sigo escuchando hasta reconocerlo.</string>
+    <string name="identify_waiting">Esperando a que suene algo…</string>
+    <string name="identify_hearing">Te escucho · sigue tocando</string>
     <string name="identify_listening_footer">La IA analiza timbre y registro en tu teléfono</string>
     <string name="identify_cancel">Cancelar</string>
     <string name="identify_retry">Reintentar</string>
@@ -38,8 +40,6 @@
     <string name="identify_selected_by_user">Elegido por ti · la IA sugería %1$s</string>
     <string name="identify_other_named">Otro · %1$s</string>
     <string name="identify_bowed_hint">Violín, viola y violonchelo suenan muy parecido al micrófono del teléfono: confirma cuál estás tocando.</string>
-    <string name="identify_none_title">No reconocí un instrumento</string>
-    <string name="identify_none_body">Acércate al micrófono y toca varias notas claras mientras escucho.</string>
     <string name="identify_error_title">No se pudo usar la IA</string>
     <string name="unknown_instrument">Instrumento no reconocido</string>
     <string name="identify_error_body">Ocurrió un error al cargar el modelo de reconocimiento. Intenta de nuevo.</string>
