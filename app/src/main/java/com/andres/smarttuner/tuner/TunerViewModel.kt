@@ -113,13 +113,6 @@ class TunerViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.update { it.copy(accidentalStyle = style) }
     }
 
-    fun changeReference(deltaHz: Float) {
-        smoother.reset()
-        _uiState.update {
-            it.copy(referenceA4 = (it.referenceA4 + deltaHz).coerceIn(MusicTheory.MIN_A4, MusicTheory.MAX_A4))
-        }
-    }
-
     fun identifyInstrument() {
         if (identifyJob?.isActive == true) return
         startListening()

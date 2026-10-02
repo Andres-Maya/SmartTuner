@@ -145,12 +145,6 @@ fun IconCircleButton(
     }
 }
 
-/** Símbolo tipográfico grande con el color de acento (♯, ♭, +, −). */
-@Composable
-fun SymbolText(symbol: String, color: Color = TunerTheme.colors.accent) {
-    Text(symbol, color = color, style = TunerTheme.typography.symbol)
-}
-
 /** Flecha "‹" dibujada, para no depender de una librería de íconos. */
 @Composable
 fun BackChevron(color: Color = TunerTheme.colors.textPrimary, size: Dp = 16.dp) {
@@ -242,35 +236,3 @@ fun <T> SegmentedToggle(
     }
 }
 
-/** Control "− valor +" para ajustar un número. */
-@Composable
-fun Stepper(
-    label: String,
-    onDecrement: () -> Unit,
-    onIncrement: () -> Unit,
-    decrementDescription: String,
-    incrementDescription: String,
-    modifier: Modifier = Modifier,
-) {
-    val sizes = TunerTheme.sizes
-    Row(
-        modifier
-            .clip(TunerTheme.shapes.pill)
-            .background(TunerTheme.colors.surfaceHigh)
-            .padding(TunerTheme.spacing.xs),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        IconCircleButton(onDecrement, decrementDescription, size = sizes.iconButton, filled = false) {
-            SymbolText("−")
-        }
-        Text(
-            text = label,
-            color = TunerTheme.colors.textPrimary,
-            style = TunerTheme.typography.buttonSmall,
-            modifier = Modifier.padding(horizontal = TunerTheme.spacing.sm),
-        )
-        IconCircleButton(onIncrement, incrementDescription, size = sizes.iconButton, filled = false) {
-            SymbolText("+")
-        }
-    }
-}

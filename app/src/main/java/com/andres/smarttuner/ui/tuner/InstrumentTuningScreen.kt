@@ -9,7 +9,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,7 +20,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -29,7 +31,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
@@ -61,6 +62,7 @@ import com.andres.smarttuner.tuner.TunerUiState
 import com.andres.smarttuner.ui.components.BackChevron
 import com.andres.smarttuner.ui.components.IconCircleButton
 import com.andres.smarttuner.ui.components.ScreenColumn
+import com.andres.smarttuner.ui.components.SectionLabel
 import com.andres.smarttuner.ui.components.StatusText
 import com.andres.smarttuner.ui.theme.SmartTunerTheme
 import com.andres.smarttuner.ui.theme.TunerTheme
@@ -92,7 +94,6 @@ fun InstrumentTuningScreen(
     val active = state.hasSignal && match != null
     val cents = match?.cents ?: 0f
     val inTune = active && abs(cents) <= TunerUiState.IN_TUNE_CENTS
-    var showTunings by rememberSaveable { mutableStateOf(false) }
     val dark = TunerTheme.appearance.mode.isDark
 
     val color by animateColorAsState(tuningColor(cents, active, colors), tween(250), label = "stringColor")
@@ -118,11 +119,19 @@ fun InstrumentTuningScreen(
     ScreenColumn(modifier) {
         InstrumentHeader(
             instrument = instrument,
-            tuning = tuning,
             referenceA4 = state.referenceA4,
             onBack = onBack,
-            onOpenTunings = { showTunings = true },
         )
+        // Las variantes van a la vista: cambiar de un bajo de 5 cuerdas a uno de 4 es un
+        // toque, sin menús que haya que descubrir.
+        if (instrument.tunings.size > 1) {
+            Spacer(Modifier.height(spacing.md))
+            TuningSelector(
+                instrument = instrument,
+                selected = tuning,
+                onSelect = onSelectTuning,
+            )
+        }
         Spacer(Modifier.weight(1f))
         if (dark) {
             TunerDial(
@@ -139,7 +148,6 @@ fun InstrumentTuningScreen(
         } else {
             PaperDial(
                 cents = animatedCents,
-                frequency = state.frequency,
                 hasSignal = active,
                 inTune = inTune,
                 note = match?.string?.note(state.accidentalStyle),
@@ -151,7 +159,6 @@ fun InstrumentTuningScreen(
             frequency = if (active) formatHz(state.frequency) else EMPTY_HZ,
             cents = if (active) formatCents(cents) else EMPTY_CENTS,
             target = match?.string?.frequency(state.referenceA4)?.let(::formatHz) ?: EMPTY_HZ,
-            showFrequency = dark,
         )
         Spacer(Modifier.height(spacing.md))
         StatusText(
@@ -184,16 +191,63 @@ fun InstrumentTuningScreen(
         FooterHint(state, strings.size)
         Spacer(Modifier.weight(1f))
     }
+}
 
-    if (showTunings) {
-        TuningSheet(
-            instrument = instrument,
-            selected = tuning,
-            style = state.accidentalStyle,
-            onSelect = onSelectTuning,
-            onDismiss = { showTunings = false },
-        )
+/**
+ * Variantes del instrumento como fichas: la que está en uso va marcada y las demás se ven
+ * al lado, que es lo que cuenta que se pueden cambiar.
+ */
+@Composable
+private fun TuningSelector(
+    instrument: Instrument,
+    selected: Tuning,
+    onSelect: (Tuning) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier.fillMaxWidth()) {
+        SectionLabel(stringResource(R.string.tuning_type_label))
+        Spacer(Modifier.height(TunerTheme.spacing.sm))
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
+                .selectableGroup(),
+            horizontalArrangement = Arrangement.spacedBy(TunerTheme.spacing.sm),
+        ) {
+            instrument.tunings.forEach { tuning ->
+                TuningChip(
+                    name = tuning.name,
+                    selected = tuning == selected,
+                    onSelect = { onSelect(tuning) },
+                )
+            }
+        }
     }
+}
+
+@Composable
+private fun TuningChip(name: String, selected: Boolean, onSelect: () -> Unit) {
+    val colors = TunerTheme.colors
+    val shape = TunerTheme.shapes.pill
+    val background by animateColorAsState(
+        targetValue = if (selected) colors.accent else colors.surfaceHigh,
+        label = "tuningChipBackground",
+    )
+    val content by animateColorAsState(
+        targetValue = if (selected) colors.onAccent else colors.textMuted,
+        label = "tuningChipContent",
+    )
+    Text(
+        text = name,
+        color = content,
+        style = TunerTheme.typography.buttonSmall,
+        maxLines = 1,
+        modifier = Modifier
+            .clip(shape)
+            .background(background)
+            .selectable(selected = selected, role = Role.RadioButton, onClick = onSelect)
+            .padding(horizontal = TunerTheme.spacing.lg, vertical = TunerTheme.spacing.sm),
+    )
 }
 
 @Composable
@@ -219,10 +273,8 @@ private fun FooterHint(state: TunerUiState, stringCount: Int) {
 @Composable
 private fun InstrumentHeader(
     instrument: Instrument,
-    tuning: Tuning,
     referenceA4: Float,
     onBack: () -> Unit,
-    onOpenTunings: () -> Unit,
 ) {
     val colors = TunerTheme.colors
     val spacing = TunerTheme.spacing
@@ -245,37 +297,14 @@ private fun InstrumentHeader(
                 style = TunerTheme.typography.title,
                 maxLines = 1,
             )
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                TuningChip(tuning.name, onOpenTunings)
-                Spacer(Modifier.width(spacing.xs))
-                Text(
-                    text = stringResource(R.string.reference_label, referenceA4.roundToInt()),
-                    color = colors.textMuted,
-                    style = TunerTheme.typography.footnote,
-                    maxLines = 1,
-                )
-            }
+            Text(
+                text = stringResource(R.string.reference_label, referenceA4.roundToInt()),
+                color = colors.textMuted,
+                style = TunerTheme.typography.footnote,
+                maxLines = 1,
+            )
         }
         AppearanceButton()
-    }
-}
-
-/** Píldora con la variante en uso; al tocarla se puede cambiar. */
-@Composable
-private fun TuningChip(name: String, onClick: () -> Unit) {
-    val colors = TunerTheme.colors
-    val shape = TunerTheme.shapes.pill
-    Row(
-        Modifier
-            .clip(shape)
-            .background(colors.accent.copy(alpha = 0.16f))
-            .clickable(role = Role.Button, onClickLabel = stringResource(R.string.tuning_type_change), onClick = onClick)
-            .padding(horizontal = TunerTheme.spacing.sm, vertical = TunerTheme.spacing.xxs),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(name, color = colors.accent, style = TunerTheme.typography.footnote, maxLines = 1)
-        Spacer(Modifier.width(TunerTheme.spacing.xxs))
-        Text("▾", color = colors.accent, style = TunerTheme.typography.footnote)
     }
 }
 

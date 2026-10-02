@@ -79,11 +79,9 @@ import com.andres.smarttuner.ui.components.SegmentText
 import com.andres.smarttuner.ui.components.SegmentedToggle
 import com.andres.smarttuner.ui.components.StatRow
 import com.andres.smarttuner.ui.components.StatusText
-import com.andres.smarttuner.ui.components.Stepper
 import com.andres.smarttuner.ui.theme.SmartTunerTheme
 import com.andres.smarttuner.ui.theme.TunerTheme
 import java.util.Locale
-import kotlin.math.roundToInt
 
 internal const val EMPTY_HZ = "— Hz"
 internal const val EMPTY_CENTS = "— ¢"
@@ -146,7 +144,6 @@ fun TunerRoute(viewModel: TunerViewModel) {
                     TunerMode.Chromatic -> TunerScreen(
                         state = state,
                         onSelectAccidentalStyle = viewModel::setAccidentalStyle,
-                        onChangeReference = viewModel::changeReference,
                         onIdentifyInstrument = viewModel::identifyInstrument,
                     )
                     is TunerMode.InstrumentTuning -> InstrumentTuningScreen(
@@ -187,7 +184,6 @@ fun TunerRoute(viewModel: TunerViewModel) {
 fun TunerScreen(
     state: TunerUiState,
     onSelectAccidentalStyle: (AccidentalStyle) -> Unit,
-    onChangeReference: (Float) -> Unit,
     onIdentifyInstrument: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -226,7 +222,6 @@ fun TunerScreen(
         } else {
             PaperDial(
                 cents = animatedCents,
-                frequency = state.frequency,
                 hasSignal = state.hasSignal,
                 inTune = state.status == TuningStatus.IN_TUNE,
                 note = state.note,
@@ -238,8 +233,6 @@ fun TunerScreen(
             frequency = if (hasNote) formatHz(state.frequency) else EMPTY_HZ,
             cents = if (hasNote) formatCents(state.cents) else EMPTY_CENTS,
             target = if (state.nearestMidi != null) formatHz(state.targetFrequency) else EMPTY_HZ,
-            // En claro los hercios ya van bajo la aguja: repetirlos sobra.
-            showFrequency = dark,
         )
         Spacer(Modifier.height(spacing.md))
         StatusText(
@@ -249,15 +242,14 @@ fun TunerScreen(
             pulsing = idle && state.isListening,
         )
         Spacer(Modifier.weight(1f))
-        // El carrusel cromático se queda en el modo oscuro: en el claro ese papel lo hace
-        // la regleta, y dos reglas seguidas se estorban.
-        if (dark) {
-            NoteStrip(state, color, Modifier.fillMaxWidth().height(64.dp))
-            Spacer(Modifier.height(spacing.md))
-        }
-        StaffCard(state, color)
-        Spacer(Modifier.weight(1f))
-        BottomBar(state, onIdentifyInstrument, onChangeReference)
+        // Única acción de la pantalla: ancha y abajo, donde cae el pulgar.
+        PrimaryButton(
+            text = stringResource(R.string.identify_instrument),
+            onClick = onIdentifyInstrument,
+            leading = "✦",
+            height = TunerTheme.sizes.buttonLarge,
+            modifier = Modifier.fillMaxWidth(),
+        )
     }
 }
 
@@ -470,43 +462,14 @@ private fun NeighborLabel(title: String, note: NoteName?, alignEnd: Boolean, mod
 }
 
 @Composable
-internal fun ReadingsRow(
-    frequency: String,
-    cents: String,
-    target: String,
-    showFrequency: Boolean = true,
-) {
+internal fun ReadingsRow(frequency: String, cents: String, target: String) {
     StatRow(
-        buildList {
-            if (showFrequency) add(stringResource(R.string.label_frequency) to frequency)
-            add(stringResource(R.string.label_cents) to cents)
-            add(stringResource(R.string.label_target) to target)
-        },
+        listOf(
+            stringResource(R.string.label_frequency) to frequency,
+            stringResource(R.string.label_cents) to cents,
+            stringResource(R.string.label_target) to target,
+        ),
     )
-}
-
-@Composable
-private fun BottomBar(state: TunerUiState, onIdentifyInstrument: () -> Unit, onChangeReference: (Float) -> Unit) {
-    Row(
-        Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(TunerTheme.spacing.md),
-    ) {
-        PrimaryButton(
-            text = stringResource(R.string.identify_instrument),
-            onClick = onIdentifyInstrument,
-            leading = "✦",
-            height = TunerTheme.sizes.touchTarget,
-            modifier = Modifier.weight(1f),
-        )
-        Stepper(
-            label = stringResource(R.string.reference_label, state.referenceA4.roundToInt()),
-            onDecrement = { onChangeReference(-1f) },
-            onIncrement = { onChangeReference(1f) },
-            decrementDescription = stringResource(R.string.decrease_reference),
-            incrementDescription = stringResource(R.string.increase_reference),
-        )
-    }
 }
 
 @Composable
@@ -582,7 +545,6 @@ private fun TunerScreenPreview() {
                 cents = 12f,
             ),
             onSelectAccidentalStyle = {},
-            onChangeReference = {},
             onIdentifyInstrument = {},
         )
     }

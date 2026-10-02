@@ -139,7 +139,6 @@ private fun DesignSystemCatalog(mode: ThemeMode) {
                         contentDescription = "Alteraciones",
                     )
                 }
-                Stepper("La 440", onDecrement = {}, onIncrement = {}, decrementDescription = "−", incrementDescription = "+")
                 Row(horizontalArrangement = Arrangement.spacedBy(spacing.md)) {
                     IconCircleButton(onClick = {}, contentDescription = "Modo claro") { ThemeModeIcon(dark = true) }
                     IconCircleButton(onClick = {}, contentDescription = "Modo oscuro") { ThemeModeIcon(dark = false) }
@@ -159,7 +158,7 @@ private fun DesignSystemCatalog(mode: ThemeMode) {
 
             CatalogSection("Superficies") {
                 TunerCard {
-                    SectionLabel("PENTAGRAMA")
+                    SectionLabel("TIPO")
                     Spacer(Modifier.height(spacing.sm))
                     Text("Contenido de la tarjeta", color = colors.textPrimary, style = typography.body)
                 }

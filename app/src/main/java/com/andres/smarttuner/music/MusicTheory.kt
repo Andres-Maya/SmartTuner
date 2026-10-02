@@ -24,9 +24,6 @@ data class NoteName(
 ) {
     private val letterIndex: Int get() = LETTERS.indexOf(letter)
 
-    /** Índice diatónico absoluto: sube 1 por cada letra (C0 = 0, D0 = 1 … C1 = 7). */
-    val diatonicIndex: Int get() = octave * 7 + letterIndex
-
     val accidentalSymbol: String get() = accidental?.symbol.orEmpty()
 
     val solfege: String get() = SOLFEGE[letterIndex]
@@ -40,8 +37,6 @@ data class NoteName(
 
 object MusicTheory {
     const val DEFAULT_A4 = 440f
-    const val MIN_A4 = 415f
-    const val MAX_A4 = 466f
 
     // Para cada clase de altura (0 = C): índice de letra y alteración.
     private val SHARP_SPELLING = arrayOf(

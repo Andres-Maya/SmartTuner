@@ -27,7 +27,7 @@ import kotlin.math.cos
 import kotlin.math.min
 import kotlin.math.sin
 
-private const val MAX_CENTS = 50f
+internal const val MAX_CENTS = 50f
 
 /** Luces a cada lado de la central: 21 en total, como las de un pedal afinador. */
 private const val SIDE_LIGHTS = 10
@@ -37,6 +37,30 @@ private const val HALF_SWEEP = 62f
 
 /** Largo de cada rayita respecto al radio del arco. */
 private const val LIGHT_LENGTH = 0.19f
+
+/**
+ * Trazado del arco del afinador. Los dos modos lo comparten: el oscuro enciende sus luces
+ * sobre él y el claro dibuja ahí la regleta, así el visor no se mueve al cambiar de modo.
+ */
+internal class TunerArc(val center: Offset, val radius: Float, val length: Float) {
+    /** Grados desde la vertical: −62 en −50 ¢ y +62 en +50 ¢. */
+    fun angleOf(cents: Float): Float = -90f + (cents / MAX_CENTS).coerceIn(-1f, 1f) * HALF_SWEEP
+
+    fun positionOf(angle: Float, distance: Float): Offset {
+        val radians = angle * PI.toFloat() / 180f
+        return Offset(center.x + distance * cos(radians), center.y + distance * sin(radians))
+    }
+}
+
+/** El radio lo limita el lado más ajustado: el ancho disponible o el alto que ocupa el arco. */
+internal fun DrawScope.tunerArc(padding: Float = 6.dp.toPx()): TunerArc {
+    val sweep = HALF_SWEEP * PI.toFloat() / 180f
+    val radius = min(
+        (size.width / 2f - padding) / sin(sweep),
+        (size.height - padding * 2f) / (1f - cos(sweep) + LIGHT_LENGTH * cos(sweep)),
+    )
+    return TunerArc(Offset(size.width / 2f, padding + radius), radius, radius * LIGHT_LENGTH)
+}
 
 /** Verde afinado → ámbar cerca → coral desafinado. */
 fun tuningColor(cents: Float, hasSignal: Boolean, colors: TunerColors): Color {
@@ -76,23 +100,14 @@ fun LedTuningArc(
     )
 
     Canvas(modifier) {
-        val sweep = HALF_SWEEP * PI.toFloat() / 180f
-        val padding = 6.dp.toPx()
-        // El radio lo limita el lado más ajustado: el ancho disponible o el alto que ocupa el arco.
-        val radius = min(
-            (size.width / 2f - padding) / sin(sweep),
-            (size.height - padding * 2f) / (1f - cos(sweep) + LIGHT_LENGTH * cos(sweep)),
-        )
-        val length = radius * LIGHT_LENGTH
-        val center = Offset(size.width / 2f, padding + radius)
-        val step = radius * sweep / SIDE_LIGHTS
+        val arc = tunerArc()
+        val radius = arc.radius
+        val length = arc.length
+        val step = radius * HALF_SWEEP * PI.toFloat() / 180f / SIDE_LIGHTS
 
-        fun angleOf(index: Float) = -90f + index / SIDE_LIGHTS * HALF_SWEEP
+        fun angleOf(index: Float) = arc.angleOf(index / SIDE_LIGHTS * MAX_CENTS)
 
-        fun positionOf(index: Float, distance: Float): Offset {
-            val radians = angleOf(index) * PI.toFloat() / 180f
-            return Offset(center.x + distance * cos(radians), center.y + distance * sin(radians))
-        }
+        fun positionOf(index: Float, distance: Float): Offset = arc.positionOf(angleOf(index), distance)
 
         // Al quedar afinado, el aire alrededor de la luz central se tiñe. Sobre papel no:
         // un halo en el modo claro solo emborrona.

@@ -8,7 +8,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -124,12 +123,9 @@ data class TunerSizes(
     val iconLarge: Dp = 84.dp,
     /** Logo junto al nombre de la app. */
     val logo: Dp = 38.dp,
-    /** Aro que rodea la nota escrita en el modo claro. */
-    val noteCircle: Dp = 168.dp,
-    /** Alto de la regleta con la aguja. */
-    val ruler: Dp = 96.dp,
+    /** Aro que rodea la nota escrita en el modo claro, dentro del hueco del arco. */
+    val noteCircle: Dp = 136.dp,
     val avatar: Dp = 56.dp,
-    val statusDot: Dp = 8.dp,
     val progressBar: Dp = 6.dp,
     /** Alto del arco de luces del afinador cuando se muestra suelto. */
     val ledArc: Dp = 132.dp,
@@ -173,20 +169,11 @@ data class TunerTypography(
     val symbol: TextStyle = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.Bold),
     val progress: TextStyle = TextStyle(fontSize = 24.sp, fontWeight = FontWeight.SemiBold),
     val noteLetter: TextStyle = TextStyle(fontSize = 104.sp, lineHeight = 104.sp, fontWeight = FontWeight.Bold),
-    val noteAccidental: TextStyle = TextStyle(fontSize = 42.sp, lineHeight = 44.sp, fontWeight = FontWeight.Bold),
-    val noteOctave: TextStyle = TextStyle(fontSize = 32.sp, lineHeight = 34.sp, fontWeight = FontWeight.SemiBold),
-    val notePlaceholder: TextStyle = TextStyle(fontSize = 96.sp, lineHeight = 100.sp, fontWeight = FontWeight.Light),
     /** La nota escrita del modo claro: letra grande y, al lado, alteración y octava. */
     val noteGlyph: TextStyle = TextStyle(fontFamily = DisplayFamily, fontSize = 86.sp, lineHeight = 90.sp),
     val noteGlyphSmall: TextStyle = TextStyle(fontFamily = DisplayFamily, fontSize = 30.sp, lineHeight = 34.sp),
-    /** Los hercios que viajan bajo la aguja de la regleta. */
-    val rulerValue: TextStyle = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.Medium),
     val noteCaption: TextStyle = TextStyle(fontSize = 18.sp, fontWeight = FontWeight.Medium),
     val noteLabel: TextStyle = TextStyle(fontSize = 17.sp, fontWeight = FontWeight.SemiBold),
-    val gaugeLabel: TextStyle = TextStyle(fontSize = 11.sp, fontWeight = FontWeight.Medium),
-    val stripNote: TextStyle = TextStyle(fontSize = 22.sp, fontWeight = FontWeight.Bold),
-    val staffNote: TextStyle = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.SemiBold),
-    val staffMark: TextStyle = TextStyle(fontSize = 12.sp, fontStyle = FontStyle.Italic, fontWeight = FontWeight.SemiBold),
 )
 
 internal val LocalTunerColors = staticCompositionLocalOf { DarkTunerColors }
