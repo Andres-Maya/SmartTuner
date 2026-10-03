@@ -52,6 +52,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -205,7 +207,7 @@ fun TunerScreen(
     val dark = TunerTheme.appearance.mode.isDark
 
     ScreenColumn(modifier) {
-        TopBar(state.accidentalStyle, onSelectAccidentalStyle)
+        TopBar(onIdentifyInstrument)
         Spacer(Modifier.weight(1f))
         if (dark) {
             TunerDial(
@@ -242,13 +244,12 @@ fun TunerScreen(
             pulsing = idle && state.isListening,
         )
         Spacer(Modifier.weight(1f))
-        // Única acción de la pantalla: ancha y abajo, donde cae el pulgar.
-        PrimaryButton(
-            text = stringResource(R.string.identify_instrument),
-            onClick = onIdentifyInstrument,
-            leading = "✦",
-            height = TunerTheme.sizes.buttonLarge,
-            modifier = Modifier.fillMaxWidth(),
+        // Solo aquí: en la afinación por instrumento las notas ya vienen dadas por las cuerdas.
+        SegmentedToggle(
+            options = listOf(AccidentalStyle.SHARPS to "♯", AccidentalStyle.FLATS to "♭"),
+            selected = state.accidentalStyle,
+            onSelect = onSelectAccidentalStyle,
+            contentDescription = stringResource(R.string.toggle_accidentals),
         )
     }
 }
@@ -263,11 +264,10 @@ private fun chromaticStatusText(state: TunerUiState): String = when {
 }
 
 @Composable
-private fun TopBar(
-    style: AccidentalStyle,
-    onSelect: (AccidentalStyle) -> Unit,
-) {
+private fun TopBar(onIdentifyInstrument: () -> Unit) {
     val colors = TunerTheme.colors
+    val sizes = TunerTheme.sizes
+    val identify = stringResource(R.string.identify_instrument)
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         AppLogo(Modifier.size(TunerTheme.sizes.logo))
         Spacer(Modifier.width(TunerTheme.spacing.sm))
@@ -285,11 +285,15 @@ private fun TopBar(
                 maxLines = 1,
             )
         }
-        SegmentedToggle(
-            options = listOf(AccidentalStyle.SHARPS to "♯", AccidentalStyle.FLATS to "♭"),
-            selected = style,
-            onSelect = onSelect,
-            contentDescription = stringResource(R.string.toggle_accidentals),
+        // Ocupa justo el hueco de un selector de dos segmentos, para que el nombre de la app
+        // no se corte; el texto corto se lee entero y el lector de pantalla dice el completo.
+        PrimaryButton(
+            text = stringResource(R.string.identify_short),
+            onClick = onIdentifyInstrument,
+            height = sizes.touchTarget,
+            modifier = Modifier
+                .width(sizes.segmentWidth * 2 + TunerTheme.spacing.xs * 2)
+                .semantics { contentDescription = identify },
         )
         Spacer(Modifier.width(TunerTheme.spacing.sm))
         AppearanceButton()
