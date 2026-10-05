@@ -51,7 +51,7 @@ class ThemeController(
 internal val LocalThemeController = staticCompositionLocalOf { ThemeController(ThemeMode.DARK) {} }
 
 /**
- * [mode] elige entre el modo oscuro (neón lima sobre tinta) y el claro (papel crema y
+ * [mode] elige entre el modo oscuro (neón celeste sobre tinta) y el claro (papel crema y
  * tinta marrón); [onToggleMode] recibe el cambio desde el botón de la barra superior.
  */
 @Composable

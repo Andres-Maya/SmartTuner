@@ -1,7 +1,7 @@
 package com.andres.smarttuner.ui.theme
 
 /**
- * Los dos aspectos de la app. El oscuro es el de siempre, con el neón lima del logo; el
+ * Los dos aspectos de la app. El oscuro es el de siempre, con el neón celeste del logo; el
  * claro es papel crema y tinta marrón, sin brillos.
  */
 enum class ThemeMode {

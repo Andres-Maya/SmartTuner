@@ -28,6 +28,7 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathOperation
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -44,7 +45,8 @@ import kotlin.math.sin
 
 /**
  * Acción principal: píldora con degradado. El texto se reduce solo si no cabe.
- * [leading] es un símbolo opcional antes del texto (p. ej. "✦").
+ * [leading] es un símbolo opcional antes del texto (p. ej. "✦"); [shape] cambia la píldora
+ * por otra forma del tema cuando el botón va suelto en la pantalla.
  */
 @Composable
 fun PrimaryButton(
@@ -53,13 +55,14 @@ fun PrimaryButton(
     modifier: Modifier = Modifier,
     leading: String? = null,
     height: Dp = TunerTheme.sizes.button,
+    shape: Shape = TunerTheme.shapes.pill,
 ) {
     val colors = TunerTheme.colors
     val style = TunerTheme.typography.button
     Row(
         modifier
             .height(height)
-            .clip(TunerTheme.shapes.pill)
+            .clip(shape)
             .background(colors.accentBrush)
             .clickable(role = Role.Button, onClick = onClick)
             .padding(horizontal = TunerTheme.spacing.lg),

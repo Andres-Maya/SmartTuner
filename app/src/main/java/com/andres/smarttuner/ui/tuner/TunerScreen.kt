@@ -52,8 +52,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -207,7 +205,18 @@ fun TunerScreen(
     val dark = TunerTheme.appearance.mode.isDark
 
     ScreenColumn(modifier) {
-        TopBar(onIdentifyInstrument)
+        TopBar()
+        Spacer(Modifier.height(spacing.lg))
+        // Entre el título y el afinador, alineado con el logo: rectángulo de esquinas
+        // redondeadas, del ancho de su texto, para que no pese tanto como una barra entera.
+        PrimaryButton(
+            text = stringResource(R.string.identify_instrument),
+            onClick = onIdentifyInstrument,
+            leading = "✦",
+            height = TunerTheme.sizes.touchTarget,
+            shape = TunerTheme.shapes.chip,
+            modifier = Modifier.align(Alignment.Start),
+        )
         Spacer(Modifier.weight(1f))
         if (dark) {
             TunerDial(
@@ -264,10 +273,8 @@ private fun chromaticStatusText(state: TunerUiState): String = when {
 }
 
 @Composable
-private fun TopBar(onIdentifyInstrument: () -> Unit) {
+private fun TopBar() {
     val colors = TunerTheme.colors
-    val sizes = TunerTheme.sizes
-    val identify = stringResource(R.string.identify_instrument)
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         AppLogo(Modifier.size(TunerTheme.sizes.logo))
         Spacer(Modifier.width(TunerTheme.spacing.sm))
@@ -285,17 +292,6 @@ private fun TopBar(onIdentifyInstrument: () -> Unit) {
                 maxLines = 1,
             )
         }
-        // Ocupa justo el hueco de un selector de dos segmentos, para que el nombre de la app
-        // no se corte; el texto corto se lee entero y el lector de pantalla dice el completo.
-        PrimaryButton(
-            text = stringResource(R.string.identify_short),
-            onClick = onIdentifyInstrument,
-            height = sizes.touchTarget,
-            modifier = Modifier
-                .width(sizes.segmentWidth * 2 + TunerTheme.spacing.xs * 2)
-                .semantics { contentDescription = identify },
-        )
-        Spacer(Modifier.width(TunerTheme.spacing.sm))
         AppearanceButton()
     }
 }

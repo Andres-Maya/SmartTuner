@@ -6,7 +6,7 @@
     </style>
 
     <!--
-        Pantalla de carga con el logo lima, a juego con el icono. Esta version es para
+        Pantalla de carga con el logo celeste, a juego con el icono. Esta version es para
         API 24-30; en API 31+ la reemplaza values-v31 con la pantalla de inicio del sistema.
     -->
     <style name="Theme.SmartTuner.Splash" parent="Theme.SmartTuner">

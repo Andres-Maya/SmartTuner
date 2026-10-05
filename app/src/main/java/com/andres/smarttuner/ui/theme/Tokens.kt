@@ -48,7 +48,7 @@ data class TunerColors(
     val accentBrush: Brush = Brush.horizontalGradient(listOf(accent, accentAlt))
 }
 
-/** Neón lima sobre tinta, a juego con el logo y el icono de la app. */
+/** Neón celeste sobre tinta, a juego con el logo y el icono de la app. */
 val DarkTunerColors = TunerColors(
     background = Palette.Ink900,
     backgroundDeep = Palette.Ink950,
@@ -56,8 +56,8 @@ val DarkTunerColors = TunerColors(
     surfaceHigh = Palette.Ink700,
     textPrimary = Palette.Mist50,
     textMuted = Palette.Mist400,
-    accent = Palette.Lime400,
-    accentAlt = Palette.Spring400,
+    accent = Palette.Sky400,
+    accentAlt = Palette.Cyan400,
     onAccent = Palette.Ink950,
     inTune = Palette.Mint400,
     nearlyInTune = Palette.Amber300,

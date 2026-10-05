@@ -3,7 +3,7 @@ package com.andres.smarttuner.ui.theme
 import androidx.compose.ui.graphics.Color
 
 internal object Palette {
-    // Modo oscuro: tinta azulada y el verde lima del logo.
+    // Modo oscuro: tinta azulada y el celeste del logo.
     val Ink950 = Color(0xFF05070F)
     val Ink900 = Color(0xFF090D1C)
     val Ink800 = Color(0xFF131A33)
@@ -12,8 +12,8 @@ internal object Palette {
     val Mist50 = Color(0xFFEDEFF7)
     val Mist400 = Color(0xFF8A93B2)
 
-    val Lime400 = Color(0xFFA3E635)
-    val Spring400 = Color(0xFF4ADE80)
+    val Sky400 = Color(0xFF38BDF8)
+    val Cyan400 = Color(0xFF22D3EE)
 
     val Mint400 = Color(0xFF3DDC97)
     val Amber300 = Color(0xFFFFC857)

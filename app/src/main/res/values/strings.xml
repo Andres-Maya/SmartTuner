@@ -20,7 +20,6 @@
     <string name="reference_label">La %1$d</string>
 
     <string name="identify_instrument">Identificar instrumento</string>
-    <string name="identify_short">Identificar</string>
     <string name="identify_listening_title">Identificando instrumento</string>
     <string name="identify_listening_body">Toca notas sueltas o cuerdas al aire cerca del micrófono. Sin prisa: sigo escuchando hasta reconocerlo.</string>
     <string name="identify_waiting">Esperando a que suene algo…</string>
