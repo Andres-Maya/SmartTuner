@@ -19,15 +19,15 @@ internal object Palette {
     val Amber300 = Color(0xFFFFC857)
     val Coral400 = Color(0xFFFF6B6B)
 
-    // Modo claro: papel crema y madera, como un afinador de sobremesa de toda la vida.
+    // Modo claro: papel crema con tinta oscura y un azul sereno para las acciones.
     val Sand50 = Color(0xFFFAF9F4)
     val Sand100 = Color(0xFFF1F0EB)
     val Sand200 = Color(0xFFE9E6DC)
     val Sand300 = Color(0xFFDDD8C9)
 
     val Bark900 = Color(0xFF33291A)
-    val Bark600 = Color(0xFF7A5A24)
-    val Bark400 = Color(0xFFA8823C)
+    val Azure600 = Color(0xFF3F72AF)
+    val Azure400 = Color(0xFF5B8DC9)
     val Clay400 = Color(0xFF746A58)
 
     // Los colores de afinación del modo claro van bastante más oscuros que los del oscuro:

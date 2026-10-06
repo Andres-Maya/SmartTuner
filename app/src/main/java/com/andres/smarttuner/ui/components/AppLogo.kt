@@ -12,7 +12,7 @@ import com.andres.smarttuner.ui.theme.TunerTheme
 
 /**
  * Logo de la app: el clavijero de bajo que por un lado es circuito. En el modo oscuro es el
- * neón celeste recortado en círculo, y en el claro el mismo dibujo a trazo, teñido de marrón,
+ * neón celeste recortado en círculo, y en el claro el mismo dibujo a trazo, teñido con el acento,
  * que es lo que pega sobre papel. Al tocarlo da una vuelta rápida.
  */
 @Composable

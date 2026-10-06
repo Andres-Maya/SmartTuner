@@ -146,7 +146,11 @@ fun IdentificationSheet(
                     )
                     Spacer(Modifier.height(spacing.md))
                 }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(spacing.md)) {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(spacing.md),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                     SecondaryButton(
                         text = stringResource(R.string.identify_retry),
                         onClick = onRetry,
@@ -155,6 +159,7 @@ fun IdentificationSheet(
                     PrimaryButton(
                         text = stringResource(R.string.identify_accept),
                         onClick = { onAccept(if (identified != null) selected else null, tuning) },
+                        height = TunerTheme.sizes.buttonLarge,
                         modifier = Modifier.weight(1f),
                     )
                 }

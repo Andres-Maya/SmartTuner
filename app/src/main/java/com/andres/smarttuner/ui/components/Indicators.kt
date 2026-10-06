@@ -25,6 +25,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import com.andres.smarttuner.ui.theme.TunerTheme
 
@@ -53,6 +56,26 @@ fun StatusText(
         style = TunerTheme.typography.status,
         textAlign = TextAlign.Center,
         modifier = modifier.graphicsLayer { alpha = if (pulsing) pulse else 1f },
+    )
+}
+
+/**
+ * Aviso breve que confirma un cambio y se va solo. [alpha] lo anima quien lo muestra, y se
+ * lee en la fase de dibujo para no recomponer en cada cuadro.
+ */
+@Composable
+fun TransientMessage(text: String, alpha: () -> Float, modifier: Modifier = Modifier) {
+    Text(
+        text = text,
+        color = TunerTheme.colors.textPrimary,
+        style = TunerTheme.typography.caption,
+        textAlign = TextAlign.Center,
+        modifier = modifier
+            .graphicsLayer { this.alpha = alpha() }
+            .clip(TunerTheme.shapes.pill)
+            .background(TunerTheme.colors.surfaceHigh)
+            .padding(horizontal = TunerTheme.spacing.lg, vertical = TunerTheme.spacing.sm)
+            .semantics { liveRegion = LiveRegionMode.Polite },
     )
 }
 

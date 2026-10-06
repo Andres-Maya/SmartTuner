@@ -70,7 +70,7 @@ val DarkTunerColors = TunerColors(
     glow = 1f,
 )
 
-/** Papel crema y tinta marrón: sin brillos, todo al trazo. */
+/** Papel crema y tinta azul: sin brillos, todo al trazo. */
 val LightTunerColors = TunerColors(
     background = Palette.Sand100,
     backgroundDeep = Palette.Sand200,
@@ -78,8 +78,9 @@ val LightTunerColors = TunerColors(
     surfaceHigh = Palette.Sand200,
     textPrimary = Palette.Bark900,
     textMuted = Palette.Clay400,
-    accent = Palette.Bark600,
-    accentAlt = Palette.Bark400,
+    // Un azul con cuerpo: hace de texto y de trazo sobre el crema, y un pastel ahí no se lee.
+    accent = Palette.Azure600,
+    accentAlt = Palette.Azure400,
     onAccent = Palette.Sand50,
     inTune = Palette.Moss600,
     nearlyInTune = Palette.Honey600,
@@ -148,31 +149,35 @@ data class TunerShapes(
     val chip: Shape = RoundedCornerShape(12.dp),
 )
 
-/** Estilos de texto por uso. El color lo pone cada componente según el rol. */
+/**
+ * Estilos de texto por uso. El color lo pone cada componente según el rol. Las alturas de
+ * línea van escritas: sin ellas el texto hereda la del cuerpo y los controles salen más altos
+ * que en el simulador web.
+ */
 @Immutable
 data class TunerTypography(
-    val appTitle: TextStyle = TextStyle(fontSize = 22.sp, fontWeight = FontWeight.Bold),
-    val screenTitle: TextStyle = TextStyle(fontSize = 28.sp, fontWeight = FontWeight.Bold),
+    val appTitle: TextStyle = TextStyle(fontSize = 22.sp, lineHeight = 28.sp, fontWeight = FontWeight.Bold),
+    val screenTitle: TextStyle = TextStyle(fontSize = 28.sp, lineHeight = 36.sp, fontWeight = FontWeight.Bold),
     val headline: TextStyle = TextStyle(fontSize = 24.sp, fontWeight = FontWeight.Bold),
-    val title: TextStyle = TextStyle(fontSize = 22.sp, fontWeight = FontWeight.Bold),
+    val title: TextStyle = TextStyle(fontSize = 22.sp, lineHeight = 28.sp, fontWeight = FontWeight.Bold),
     val body: TextStyle = TextStyle(fontSize = 15.sp, lineHeight = 21.sp),
     val bodySmall: TextStyle = TextStyle(fontSize = 14.sp, lineHeight = 20.sp),
     val caption: TextStyle = TextStyle(fontSize = 13.sp, lineHeight = 18.sp),
     val footnote: TextStyle = TextStyle(fontSize = 12.sp, lineHeight = 17.sp),
-    val tiny: TextStyle = TextStyle(fontSize = 10.sp),
-    val overline: TextStyle = TextStyle(fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp),
-    val statLabel: TextStyle = TextStyle(fontSize = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp),
-    val statValue: TextStyle = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.Medium),
+    val tiny: TextStyle = TextStyle(fontSize = 10.sp, lineHeight = 13.sp),
+    val overline: TextStyle = TextStyle(fontSize = 11.sp, lineHeight = 16.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp),
+    val statLabel: TextStyle = TextStyle(fontSize = 10.sp, lineHeight = 13.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp),
+    val statValue: TextStyle = TextStyle(fontSize = 16.sp, lineHeight = 21.sp, fontWeight = FontWeight.Medium),
     val button: TextStyle = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.SemiBold),
-    val buttonSmall: TextStyle = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.SemiBold),
-    val status: TextStyle = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.SemiBold),
+    val buttonSmall: TextStyle = TextStyle(fontSize = 14.sp, lineHeight = 16.sp, fontWeight = FontWeight.SemiBold),
+    val status: TextStyle = TextStyle(fontSize = 15.sp, lineHeight = 20.sp, fontWeight = FontWeight.SemiBold),
     val symbol: TextStyle = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.Bold),
     val noteLetter: TextStyle = TextStyle(fontSize = 104.sp, lineHeight = 104.sp, fontWeight = FontWeight.Bold),
     /** La nota escrita del modo claro: letra grande y, al lado, alteración y octava. */
     val noteGlyph: TextStyle = TextStyle(fontFamily = DisplayFamily, fontSize = 86.sp, lineHeight = 90.sp),
     val noteGlyphSmall: TextStyle = TextStyle(fontFamily = DisplayFamily, fontSize = 30.sp, lineHeight = 34.sp),
-    val noteCaption: TextStyle = TextStyle(fontSize = 18.sp, fontWeight = FontWeight.Medium),
-    val noteLabel: TextStyle = TextStyle(fontSize = 17.sp, fontWeight = FontWeight.SemiBold),
+    val noteCaption: TextStyle = TextStyle(fontSize = 18.sp, lineHeight = 24.sp, fontWeight = FontWeight.Medium),
+    val noteLabel: TextStyle = TextStyle(fontSize = 17.sp, lineHeight = 22.sp, fontWeight = FontWeight.SemiBold),
 )
 
 internal val LocalTunerColors = staticCompositionLocalOf { DarkTunerColors }

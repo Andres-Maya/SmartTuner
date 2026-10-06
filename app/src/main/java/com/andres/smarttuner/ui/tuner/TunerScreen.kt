@@ -11,6 +11,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -39,6 +40,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -73,18 +75,25 @@ import com.andres.smarttuner.ui.components.IconCircleButton
 import com.andres.smarttuner.ui.components.MessageBlock
 import com.andres.smarttuner.ui.components.ThemeModeIcon
 import com.andres.smarttuner.ui.components.PrimaryButton
+import com.andres.smarttuner.ui.components.PrimaryIconButton
 import com.andres.smarttuner.ui.components.ScreenColumn
 import com.andres.smarttuner.ui.components.SegmentAccidental
 import com.andres.smarttuner.ui.components.SegmentText
 import com.andres.smarttuner.ui.components.SegmentedToggle
+import com.andres.smarttuner.ui.components.SparkleIcon
 import com.andres.smarttuner.ui.components.StatRow
 import com.andres.smarttuner.ui.components.StatusText
+import com.andres.smarttuner.ui.components.TransientMessage
 import com.andres.smarttuner.ui.theme.SmartTunerTheme
 import com.andres.smarttuner.ui.theme.TunerTheme
 import java.util.Locale
+import kotlinx.coroutines.delay
 
 internal const val EMPTY_HZ = "— Hz"
 internal const val EMPTY_CENTS = "— ¢"
+
+/** Cuánto se queda a la vista el aviso de sostenidos o bemoles antes de desvanecerse. */
+private const val NOTICE_MILLIS = 1000L
 
 internal fun formatHz(hz: Float): String = String.format(Locale.US, "%.1f Hz", hz)
 
@@ -204,19 +213,19 @@ fun TunerScreen(
     // regleta en el claro.
     val dark = TunerTheme.appearance.mode.isDark
 
+    // Aviso de un segundo al cambiar entre sostenidos y bemoles; cada toque lo reinicia.
+    var noticeStyle by remember { mutableStateOf(state.accidentalStyle) }
+    var noticeKey by remember { mutableIntStateOf(0) }
+    val noticeAlpha = remember { Animatable(0f) }
+    LaunchedEffect(noticeKey) {
+        if (noticeKey == 0) return@LaunchedEffect
+        noticeAlpha.animateTo(1f, tween(150))
+        delay(NOTICE_MILLIS)
+        noticeAlpha.animateTo(0f, tween(400))
+    }
+
     ScreenColumn(modifier) {
         TopBar()
-        Spacer(Modifier.height(spacing.lg))
-        // Entre el título y el afinador, alineado con el logo: rectángulo de esquinas
-        // redondeadas, del ancho de su texto, para que no pese tanto como una barra entera.
-        PrimaryButton(
-            text = stringResource(R.string.identify_instrument),
-            onClick = onIdentifyInstrument,
-            leading = "✦",
-            height = TunerTheme.sizes.touchTarget,
-            shape = TunerTheme.shapes.chip,
-            modifier = Modifier.align(Alignment.Start),
-        )
         Spacer(Modifier.weight(1f))
         if (dark) {
             TunerDial(
@@ -252,14 +261,51 @@ fun TunerScreen(
             idle = idle,
             pulsing = idle && state.isListening,
         )
-        Spacer(Modifier.weight(1f))
-        // Solo aquí: en la afinación por instrumento las notas ya vienen dadas por las cuerdas.
-        SegmentedToggle(
-            options = listOf(AccidentalStyle.SHARPS to "♯", AccidentalStyle.FLATS to "♭"),
-            selected = state.accidentalStyle,
-            onSelect = onSelectAccidentalStyle,
-            contentDescription = stringResource(R.string.toggle_accidentals),
-        )
+        // El aviso flota en el hueco de encima del selector, sin empujar nada al aparecer.
+        Box(
+            Modifier
+                .weight(1f)
+                .fillMaxWidth(),
+            contentAlignment = Alignment.BottomCenter,
+        ) {
+            if (noticeKey > 0) {
+                TransientMessage(
+                    text = stringResource(
+                        if (noticeStyle == AccidentalStyle.SHARPS) {
+                            R.string.accidentals_now_sharps
+                        } else {
+                            R.string.accidentals_now_flats
+                        },
+                    ),
+                    alpha = { noticeAlpha.value },
+                    modifier = Modifier.padding(bottom = spacing.md),
+                )
+            }
+        }
+        Box(Modifier.fillMaxWidth()) {
+            // Solo aquí: en la afinación por instrumento las notas ya vienen dadas por las cuerdas.
+            SegmentedToggle(
+                options = listOf(AccidentalStyle.SHARPS to "♯", AccidentalStyle.FLATS to "♭"),
+                selected = state.accidentalStyle,
+                onSelect = { style ->
+                    noticeStyle = style
+                    noticeKey++
+                    onSelectAccidentalStyle(style)
+                },
+                contentDescription = stringResource(R.string.toggle_accidentals),
+                // Un poco más arriba que el botón de la IA, que ocupa la esquina.
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(bottom = spacing.xxl),
+            )
+            PrimaryIconButton(
+                onClick = onIdentifyInstrument,
+                contentDescription = stringResource(R.string.identify_instrument),
+                modifier = Modifier.align(Alignment.BottomEnd),
+            ) {
+                SparkleIcon()
+            }
+        }
     }
 }
 

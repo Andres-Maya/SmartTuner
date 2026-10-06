@@ -2,8 +2,11 @@ package com.andres.smarttuner.ui.tuner
 
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
@@ -66,14 +69,21 @@ fun InstrumentGlyph(
             modifier = modifier.spinOnTap(contentDescription),
         )
     } else {
-        InstrumentIcon(
-            instrument = instrument,
-            contentDescription = contentDescription,
-            modifier = modifier.spinOnTap(contentDescription),
-            tint = tint,
-        )
+        // El neón trae margen dentro de su imagen y el trazo llena el lienzo entero: se
+        // encoge lo mismo para que el instrumento mida igual en los dos modos.
+        Box(modifier.spinOnTap(contentDescription), contentAlignment = Alignment.Center) {
+            InstrumentIcon(
+                instrument = instrument,
+                contentDescription = contentDescription,
+                modifier = Modifier.fillMaxSize(NEON_DRAWING_FRACTION),
+                tint = tint,
+            )
+        }
     }
 }
+
+/** Parte del lienzo que ocupa el dibujo en las imágenes de neón. */
+private const val NEON_DRAWING_FRACTION = 0.78f
 
 private val Instrument.iconAsset: String
     get() = when (this) {

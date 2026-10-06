@@ -52,7 +52,7 @@ internal val LocalThemeController = staticCompositionLocalOf { ThemeController(T
 
 /**
  * [mode] elige entre el modo oscuro (neón celeste sobre tinta) y el claro (papel crema y
- * tinta marrón); [onToggleMode] recibe el cambio desde el botón de la barra superior.
+ * tinta azul); [onToggleMode] recibe el cambio desde el botón de la barra superior.
  */
 @Composable
 fun SmartTunerTheme(

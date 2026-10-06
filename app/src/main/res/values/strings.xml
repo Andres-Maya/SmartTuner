@@ -2,6 +2,8 @@
     <string name="app_name">SmartTuner</string>
     <string name="tuner_subtitle">Afinador cromático</string>
     <string name="toggle_accidentals">Alternar entre sostenidos y bemoles</string>
+    <string name="accidentals_now_sharps">Ahora verás las notas con sostenidos ♯</string>
+    <string name="accidentals_now_flats">Ahora verás las notas con bemoles ♭</string>
 
     <string name="flat_side">◀ GRAVE</string>
     <string name="sharp_side">AGUDO ▶</string>

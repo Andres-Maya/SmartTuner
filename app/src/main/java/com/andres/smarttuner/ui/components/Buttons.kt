@@ -82,6 +82,48 @@ fun PrimaryButton(
     }
 }
 
+/** Acción principal reducida a su símbolo: círculo con el degradado de acento. */
+@Composable
+fun PrimaryIconButton(
+    onClick: () -> Unit,
+    contentDescription: String,
+    modifier: Modifier = Modifier,
+    size: Dp = TunerTheme.sizes.buttonLarge,
+    content: @Composable () -> Unit,
+) {
+    Box(
+        modifier
+            .size(size)
+            .clip(TunerTheme.shapes.pill)
+            .background(TunerTheme.colors.accentBrush)
+            .clickable(role = Role.Button, onClick = onClick)
+            .semantics { this.contentDescription = contentDescription },
+        contentAlignment = Alignment.Center,
+    ) {
+        content()
+    }
+}
+
+/** Destellos de IA: una estrella de cuatro puntas y otra pequeña arriba a la derecha. */
+@Composable
+fun SparkleIcon(color: Color = TunerTheme.colors.onAccent, size: Dp = 26.dp) {
+    Canvas(Modifier.size(size)) {
+        val side = this.size.minDimension
+        fun star(centerX: Float, centerY: Float, radius: Float) = Path().apply {
+            // Las puntas se unen con curvas hacia el centro, que es lo que las afila.
+            val pinch = radius * 0.16f
+            moveTo(centerX, centerY - radius)
+            quadraticTo(centerX + pinch, centerY - pinch, centerX + radius, centerY)
+            quadraticTo(centerX + pinch, centerY + pinch, centerX, centerY + radius)
+            quadraticTo(centerX - pinch, centerY + pinch, centerX - radius, centerY)
+            quadraticTo(centerX - pinch, centerY - pinch, centerX, centerY - radius)
+            close()
+        }
+        drawPath(star(side * 0.42f, side * 0.58f, side * 0.42f), color)
+        drawPath(star(side * 0.81f, side * 0.19f, side * 0.19f), color)
+    }
+}
+
 /** Acción secundaria: píldora con borde del color de acento. */
 @Composable
 fun SecondaryButton(
